@@ -1,0 +1,14 @@
+Matt Simpson
+Summer 2012
+GPU Model Search
+
+Objective: Create CUDA C code to perform linear regression model search.
+
+Details:
+- Select covariates in a linear regression model that maximize AIC, BIC, or marginal likelihood.
+- How large can n and p be while enumerating all models?
+- If models cannot be enumerated, how can we efficiently search through a subset of models to hope that we have found the best. E.g. greedy search. 
+
+Bonus:
+- Callable from R, perhaps specifying a data file to be read directly into C.
+- Perform model averaging for prediction.
