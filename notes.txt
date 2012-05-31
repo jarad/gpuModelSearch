@@ -1,0 +1,9 @@
+This is a collections of notes to myself (e.g. Matt)
+
+Things to look into:
+- See how gpuTools implements matrix operations and other things
+- implement a function which takes a set of covariates and uses
+gpuTools to fit all possible regression models, then computes AIC and
+BIC to compare them (if it hasn't been done)
+- familiarize myself with GSL and other libraries
+- stop wasting time fiddling with emacs
