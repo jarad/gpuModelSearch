@@ -1,0 +1,33 @@
+I figured out how to use the GSL libraries once and don't want to do it again, so here are some instructions.
+Note: these instructions should apply with obvious modifications to other libraries.
+
+First, assume you have a file with C code in it that uses a function from GSL.
+Then you'll have the include statment in the file:
+
+#include <gsl/header.h>
+
+Where header.h is the particular header file with the particular function you need.
+Lets assume the file is called file.c. Then compiling and linking is done in two
+separate steps. First, run
+
+gcc -Wall -I/apps/include file.c -c
+
+-Wall is for error control and not necessary for compiling to work. 
+-Idirectory just gives the directory of the gsl header files since they aren't in the compiler's path.
+	    In this case, /apps/include is that directory.
+file.c is the name of the file containing the C code.
+-c tells the compiler not to link - this will be done in a discrete second step.
+The output, by default, is an object file: file.o.
+
+Now for the linking step. 
+
+gcc -L/apps/lib file.o -lgsl -lgslcblas -lm -o file_c.out
+
+-Ldirectory just gives the directory of the gsl libraries since they aren't in the compiler's path.
+file.o is the name of the object file from the previous step.
+-llibraryname or equivalently -l libraryname tells the compiler to search the library named "libraryname"
+	      when linking. In this case, it's searching the gsl, gslcblas, and m libraries. (The "m" 
+	      library is the system math library.) Note that order of the .o file and the libraries affects 
+	      the output: it searches from left to right.
+-o file_c.out just tells the compiler what to name the output file. This file can be run with ./file_c.out
+
