@@ -7,8 +7,6 @@
     - Currently each model, indexed by id, gets a matrix of size n*p where the 
       cols corresponding to variables NOT in model id are set to 0. Instead, each
       model should get the correct n*ncol[id] matrix with those columns omitted.
-    - Currently the size of matrix X must be set at compile time. Dynamic allocation
-      needs to be implemented so that this can be set an run time.
  */
 
 
@@ -70,18 +68,24 @@ int main (void){
   int n=5;  //# observations, i.e. rows of model matrix
   int * dp, * dn, * dN;  //device p and device n
   int i, j, k;  //loop counters
-  float X[n][p]; //full model matrix
-  float Xm[n][p][N]; //array of all possible model matricies
+  float * X; //full model matrix
+  float * Xm; //array of all possible model matricies
   float * dX, * dXm; //device X and device Xm
-  int ncol[N]; //# columns in each model's model matrix
+  int * ncol; //# columns in each model's model matrix
   int * dncol; //device ncol
-  int var[N][p]; //binary string indicating which variables are in which models
+  int * var; //binary string indicating which variables are in which models
   int * dvar;  //device var
+
+  //allocate memory for X, Xm, var, and ncol
+  X = (float *) malloc(n*p*sizeof(float));
+  Xm = (float *) malloc(n*p*N*sizeof(float));
+  var = (int *) malloc(N*p*sizeof(int));
+  ncol = (int *) malloc(N*sizeof(int));
 
   //initialize X
   for(i=0; i<n; i++)
     for(j=0; j<p; j++)
-      X[i][j]=pow(i+1,j);
+      X[j + i*p]=pow(i+1,j);
 
   //allocate memory on device for device variables
   cudaMalloc( (void**)&dp, sizeof(int));
@@ -118,13 +122,13 @@ int main (void){
   for(k=0; k<N; k++){
     printf("Model: %d Cols: %d Var: ", k+1, ncol[k]);
     for(i=0; i<p; i++){
-      printf("%d",var[k][i]);
+      printf("%d",var[i + k*p]);
     }
     printf("\n\nModelMatrix:\n\n");
     
     for(i=0; i<n; i++){
 	for(j=0; j<p; j++){
-	  printf("%.0f  ", Xm[i][j][k] );
+	  printf("%.0f  ", Xm[k + N*(j + i*p)] );
 	}
 	printf("\n");
       }
@@ -135,7 +139,7 @@ int main (void){
   //  printf("Full Matrix X\n\n");
   //  for(i=0; i<n; i++){
   //    for(j=0; j<p; j++){
-  //      printf("%.f ", X[i][j]);
+  //      printf("%.f ", X[j+p*i]);
   //    }
   //    printf("\n");
   //  }
