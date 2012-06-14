@@ -34,14 +34,15 @@ gpuLmsearch <- function(Y, X, g, sortby="MargLike"){
   n <- nrow(X)
   M <- 2^k
   models <- list()
-  Ynorm <- sum( ( Y-sum(Y) )^2 )
+  Ynorm <- sum( ( Y-mean(Y) )^2 )
   C <- margC(n, Ynorm)
 
   ##first, center X:
-  for(i in 2:p){
-    mn <- mean(X[,i])
-    X[,i] <- X[,i] - mn
-  }
+  if(p>1)
+    for(i in 2:p){
+      mn <- mean(X[,i])
+      X[,i] <- X[,i] - mn
+    }
   
   ID <- 1:M
   BinId <- paste(ID)
@@ -53,8 +54,8 @@ gpuLmsearch <- function(Y, X, g, sortby="MargLike"){
   for(i in ID){
     binid <- modelid(i,k)
     Xm <- modelmat(X, binid)
-    pm <- ncol(Xm)
-    km <- pm-1
+    km <- sum(binid)
+    pm <- km+1
     ##dat <- data.frame(Y,Xm)
     gout <- gpuLm.fit(Xm, Y)
     ssr <- sum(gout$residuals ^ 2)
@@ -66,7 +67,7 @@ gpuLmsearch <- function(Y, X, g, sortby="MargLike"){
     BinId[i] <- paste(binid, collapse="")
     Aic[i] <- aic(n,pm,sighat)
     Bic[i] <- bic(n,pm,sighat)
-    MargLike[i] <- marglik(n,km, g, Rsq, C)
+    MargLike[i] <- marglik(n, km, g, Rsq, C)
     Vars[i] <- paste(colnames(Xm),collapse=" ")
   }
 
@@ -101,11 +102,14 @@ bic <- function(n, p, sighat){
 }
 
 ##Formula from Liang et al 2007, pg 6, assumes constant g
-##late it might be worth implementing with priors chosen for g
+##later it might be worth implementing with priors chosen for g
 marglik <- function(n, k, g, Rsq, C){
+  if(k==0)
+    print(Rsq)
+  
   out <- (1+g) ^ ( (n-1-k)/2 )
   out <- out / (   ( 1 + g*(1-Rsq) ) ^ ( (n-1)/2 ) )
-  out <- C * out 
+  out <- C * out
   return(out)
 }
 
