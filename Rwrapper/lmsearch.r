@@ -28,13 +28,13 @@ modelmat <- function(X, binid){
 
 
 
-gpuLmsearch <- function(Y, X, g, sortby="MargLike", storemodels=FALSE){
+gpuLmsearch <- function(Y, X, g=nrow(Y), sortby="MargLike", storemodels=FALSE){
   p <- ncol(X) #number of regressors, including intercept
   k <- p - 1 #number of possible covariates
   n <- nrow(X) #sample size
   M <- 2^k #number of possible models (all contain intercept)
   
-  if(storemodels = TRUE) ##only used if full model info is desired
+  if(storemodels == TRUE) ##only used if full model info is desired
     models <- list()
 
   ##C is a common multiplicative constant to marginal likelihood of all models
@@ -70,7 +70,7 @@ gpuLmsearch <- function(Y, X, g, sortby="MargLike", storemodels=FALSE){
     Rsq <- 1 - ssr/Ynorm #R^2
 
     ##save full model info, if wanted
-    if(storemodels = TRUE){
+    if(storemodels == TRUE){
       gout$BinID <- binid
       gout$ID <- i 
       models[[i]] <- gout ##full model information for model i
@@ -93,7 +93,7 @@ gpuLmsearch <- function(Y, X, g, sortby="MargLike", storemodels=FALSE){
   out <- list()
   out$list <- data.frame(ID=ID, BinaryID=BinId, AIC=Aic, AICrank=Ar, BIC=Bic,
                          BICrank=Br, MargLike=MargLike, MLrank=Mr, Variables=Vars)
-  if(storemodels = TRUE)
+  if(storemodels == TRUE)
     out$models <- models
 
   if(sortby=="AIC")
@@ -139,4 +139,18 @@ margC <- function(n, Ynorm){
   K <- gamma((n-1)/2) / pi^((n-1)/2) / sqrt(n)
   out <- K*Ynorm
   return(out)
+}
+
+##generate a model matrix
+genX <- function(n, k){
+  X <- matrix(c(rep(1,n),rnorm(n*k)),ncol=k+1)
+  colnames(X) <- c("Int", paste("x", c(1:k), sep=""))
+  return(X)
+}
+
+##generate a response vector
+genY <- function(n,k,X){
+  betas <- t(t(c(rnorm(k+1))))
+  Y <- X%*%betas
+  return(Y)
 }
