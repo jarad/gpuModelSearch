@@ -27,38 +27,42 @@ modelmat <- function(X, binid){
 
 
 
-
-gpuLmsearch <- function(Y, X, g=nrow(Y), sortby="MargLike", storemodels=FALSE){
+##Stores model selection info of the best 1000 models according to sortby
+gpuLmsearch <- function(Y, X, g=nrow(Y), sortby="AIC", storemodels=FALSE,
+                        printi=FALSE){
   p <- ncol(X) #number of regressors, including intercept
   k <- p - 1 #number of possible covariates
   n <- nrow(X) #sample size
   M <- 2^k #number of possible models (all contain intercept)
+  nlist <- min(M, 1000)
   
   if(storemodels == TRUE) ##only used if full model info is desired
     models <- list()
 
-  ##C is a common multiplicative constant to marginal likelihood of all models
   Ynorm <- sum( ( Y-mean(Y) )^2 )
-  C <- margC(n, Ynorm)
+  ##C is a common multiplicative constant to marginal likelihood of all models
+  ## C <- margC(n, Ynorm)
   
 
   ##first, center X:
-  if(p>1)
-    for(i in 2:p){
-      mn <- mean(X[,i])
-      X[,i] <- X[,i] - mn
-    }
+  ##if(p>1)
+   ## for(i in 2:p){
+    ##  mn <- mean(X[,i])
+     ## X[,i] <- X[,i] - mn
+   ## }
 
   ##initialize variables
-  ID <- 1:M 
+  i <- 1
+  ID <- 1:nlist
   BinId <- paste(ID) 
-  Aic <-  ID 
-  Bic <- ID
-  MargLike <- ID
+  Aic <-  rep(Inf, nlist) 
+  Bic <- rep(Inf, nlist)
+  MargLike <- rep(-Inf, nlist)
   Vars <- paste(ID)
+  
 
   ##for each model
-  for(i in ID){
+  while(i <= M){
     binid <- modelid(i,k)  #find binary ID of model
     Xm <- modelmat(X, binid)  #find model matrix for model i
     km <- sum(binid)  #number of covariates in model i
@@ -69,19 +73,41 @@ gpuLmsearch <- function(Y, X, g=nrow(Y), sortby="MargLike", storemodels=FALSE){
     sighat <- ssr/gout$df.residual #estimate of sigma^2
     Rsq <- 1 - ssr/Ynorm #R^2
 
+    ##save model selection info
+    if(sortby=="AIC"){
+      WorstIdx <- which.max(Aic)
+      WorstScore <- Aic[WorstIdx]
+      Score <- aic(n,pm,sighat)
+    }
+    else if(sortby=="BIC"){
+      WorstIdx <- which.max(Bic)
+      WorstScore <- Bic[WorstIdx]
+      Score <- bic(n,pm,sighat)
+    }
+    else{
+      WorstIdx <- which.min(MargLike)
+      WorstScore <- - MargLike[WorstIdx]
+      Score <- - marglik(n, km, g, Rsq)
+    }
+
+    if(Score < WorstScore){
+      ID[WorstIdx] <- i
+      BinId[WorstIdx] <- paste(binid, collapse="")
+      Aic[WorstIdx] <- aic(n,pm,sighat)
+      Bic[WorstIdx] <- bic(n,pm,sighat)
+      MargLike[WorstIdx] <- marglik(n, km, g, Rsq)
+      Vars[WorstIdx] <- paste(colnames(Xm),collapse=" ")
+    }
+
     ##save full model info, if wanted
     if(storemodels == TRUE){
       gout$BinID <- binid
       gout$ID <- i 
-      models[[i]] <- gout ##full model information for model i
+      models[[WorstIdx]] <- gout ##full model information for model i
     }
-
-    ##save model selection info
-    BinId[i] <- paste(binid, collapse="")
-    Aic[i] <- aic(n,pm,sighat)
-    Bic[i] <- bic(n,pm,sighat)
-    MargLike[i] <- marglik(n, km, g, Rsq, C)
-    Vars[i] <- paste(colnames(Xm),collapse=" ")
+    if(printi==TRUE)
+      print(i)
+    i <-  i + 1
   }
 
   Ar <- rank(Aic) ##create rankings by AIC
@@ -122,18 +148,22 @@ bic <- function(n, p, sighat){
 ##Calculates the marginal likelihood for a given model
 ##Formula from Liang et al 2007, pg 6, assumes constant g
 ##later it might be worth implementing with priors chosen for g
-marglik <- function(n, k, g, Rsq, C){
+##note: only calculates marginal likelihood up to a multiplicative constant
+##that is common to all models
+##note2: numerical issue: returns Inf far too easily
+marglik <- function(n, k, g, Rsq, Ynorm){
   ##if we have the null model, we know Rsq = 0
   if(k==0)
     Rsq <- 0
-  
-  out <- (1+g) ^ ( (n-1-k)/2 )
-  out <- out / (   ( 1 + g*(1-Rsq) ) ^ ( (n-1)/2 ) )
-  out <- C * out
+  out <- (1+g)/(1+ g*(1-Rsq) )
+  out <- out^((n-1)/2)
+  out <- out / (1+g)^(k/2)
+  ## out <- C * out  ##this is where the common multiplicative constant would come in
   return(out)
 }
 
 ##common multiplicative constant on all marginal likelihoods
+##note: not used since it's unnecessary and gamma() blows up for large n
 margC <- function(n, Ynorm){
   Ynorm <- sqrt( Ynorm  )^(-n+1)
   K <- gamma((n-1)/2) / pi^((n-1)/2) / sqrt(n)
