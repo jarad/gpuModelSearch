@@ -57,7 +57,7 @@ gpuLmsearch <- function(Y, X, g=nrow(Y), sortby="AIC", storemodels=FALSE,
   BinId <- paste(ID) 
   Aic <-  rep(Inf, nlist) 
   Bic <- rep(Inf, nlist)
-  MargLike <- rep(-Inf, nlist)
+  LogMargLike <- rep(-Inf, nlist)
   Vars <- paste(ID)
   
 
@@ -85,9 +85,9 @@ gpuLmsearch <- function(Y, X, g=nrow(Y), sortby="AIC", storemodels=FALSE,
       Score <- bic(n,pm,sighat)
     }
     else{
-      WorstIdx <- which.min(MargLike)
-      WorstScore <- - MargLike[WorstIdx]
-      Score <- - marglik(n, km, g, Rsq)
+      WorstIdx <- which.min(LMargLike)
+      WorstScore <- - LogMargLike[WorstIdx]
+      Score <- - logmarglik(n, km, g, Rsq)
     }
 
     if(Score < WorstScore){
@@ -95,7 +95,7 @@ gpuLmsearch <- function(Y, X, g=nrow(Y), sortby="AIC", storemodels=FALSE,
       BinId[WorstIdx] <- paste(binid, collapse="")
       Aic[WorstIdx] <- aic(n,pm,sighat)
       Bic[WorstIdx] <- bic(n,pm,sighat)
-      MargLike[WorstIdx] <- marglik(n, km, g, Rsq)
+      LogMargLike[WorstIdx] <- logmarglik(n, km, g, Rsq)
       Vars[WorstIdx] <- paste(colnames(Xm),collapse=" ")
     }
 
@@ -112,13 +112,13 @@ gpuLmsearch <- function(Y, X, g=nrow(Y), sortby="AIC", storemodels=FALSE,
 
   Ar <- rank(Aic) ##create rankings by AIC
   Br <- rank(Bic) ##create rankings by BIC
-  Mr <- rank(-MargLike) ##create rankings by Marginal Likelihood
+  Mr <- rank(-LogMargLike) ##create rankings by Marginal Likelihood
 
   ##create output list, out$list contains data frame of model selection info
   ##out$models contains model specific information - coefficients, resids, et
   out <- list()
   out$list <- data.frame(ID=ID, BinaryID=BinId, AIC=Aic, AICrank=Ar, BIC=Bic,
-                         BICrank=Br, MargLike=MargLike, MLrank=Mr, Variables=Vars)
+                         BICrank=Br, LogMargLike=LogMargLike, MLrank=Mr, Variables=Vars)
   if(storemodels == TRUE)
     out$models <- models
 
@@ -159,6 +159,22 @@ marglik <- function(n, k, g, Rsq, Ynorm){
   out <- out^((n-1)/2)
   out <- out / (1+g)^(k/2)
   ## out <- C * out  ##this is where the common multiplicative constant would come in
+  return(out)
+}
+
+##Calculates the log marginal likelihood for a given model
+##Formula from Liang et al 2007, pg 6, assumes constant g
+##later it might be worth implementing with priors chosen for g
+##note: only calculates log marginal likelihood up to an additive constant
+##that is common to all models
+logmarglik <- function(n, k, g, Rsq, Ynorm){
+  ##if we have the null model, we know Rsq = 0
+  if(k==0)
+    Rsq <- 0
+  out <- log((1+g)/(1+ g*(1-Rsq) ))
+  out <- out * ( (n-1)/2 )
+  out <- out - (k/2) * log( (1+g) )
+  ## out <- C + out  ##this is where the common additive constant would come in
   return(out)
 }
 
