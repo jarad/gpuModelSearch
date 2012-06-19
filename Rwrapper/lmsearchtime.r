@@ -99,7 +99,7 @@ n <- ns[5]
 ##initial fit because the first time always takes longer than normal for some reason
 X <- genX(n,k)
 Y <- genY(n,k,X)
-system.time(test <- gpuLmsearch(Y,X, printi=TRUE))
+system.time(test <- gpuLm.fit(X,Y))
 
 for(i in 41:50){
   if(i != 1){ ##already generated above
@@ -119,7 +119,7 @@ n <- ns[6]
 ##initial fit because the first time always takes longer than normal for some reason
 X <- genX(n,k)
 Y <- genY(n,k,X)
-system.time(test <- gpuLmsearch(Y,X, printi=TRUE))
+system.time(test <- gpuLm.fit(X,Y))
 
 for(i in 51:60){
   if(i != 1){ ##already generated above
@@ -130,4 +130,4 @@ for(i in 51:60){
   fittime[i,] <- c(n,k,time[1:3])
   print(i)
 }
-write.csv(fittime, "fittime1.csv", row.names=F)
+write.csv(fittime, "fittime.csv", row.names=F)
