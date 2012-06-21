@@ -1,0 +1,17 @@
+This is a rough timeline
+
+
+June 12 - June 18
+R Wrapper for fitting all possible regression models using gputools.
+  
+June 19 - June 28
+C Wrapper for fitting all possible regression models using gputools functions.
+
+June 29 - July 20
+Cuda C for enumerating and fitting all possible models simultaneously.
+
+July 20 - july 29
+I'll be in San Francisco (vacation).
+
+July 30 - Aug 15
+Cuda C for model search.

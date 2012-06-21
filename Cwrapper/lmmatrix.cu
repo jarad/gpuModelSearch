@@ -7,8 +7,9 @@
     - Currently each model, indexed by id, gets a matrix of size n*p where the 
       cols corresponding to variables NOT in model id are set to 0. Instead, each
       model should get the correct n*ncol[id] matrix with those columns omitted.
-    - Storage of each model's matrix (i.e. Xm) is not optimized, but this part will be handled
-      differently in the actual fitting algorithm
+    - Storage of each model's matrix (i.e. Xm) is not optimized, but this part 
+      will be handled differently in the actual search algorithm since we won't 
+      need to pass the model matrices back to the host.
 
  */
 
@@ -17,16 +18,15 @@
 #include <stdlib.h>
 #include <math.h>
 
-
 //Converts the model ID into a binary string of variable (column) indicators
 __device__ void modelid(int id, int p, int *var, int * ncol, size_t varpitch){
   
   int i, k; //loop counters
-  int remain = id+1; //remainder - it's + 1 because model 0 has no cols and is omitted
+  int remain = id+1; //remainder - it's + 1 because model 0 has no cols
   int tmpcol = 0; //column counter
-  int * varrow = (int *)((char*)var + id*varpitch); //point to model id's binary rep
+  int * varrow = (int *)((char*)var + id*varpitch); //model id's binary rep
 
-  //create the binary variable indicator and count number of columns in model matrix
+  //create the binary variable indicator and count number of columns in model mat
   for(i=0; i<p; i++){
     k = 1 << (p - i - 1);
     if (remain >= k){
@@ -49,7 +49,7 @@ __global__ void modelmatrix(int p, int n, int N, float * X, size_t Xpitch,
 			    float * Xm, int * ncol, int * var, size_t varpitch){
   int id = blockIdx.x; //model id
   int i, j; //loop counters
-  int * varrow = (int *)((char*)var + id*varpitch); //pointer to model id's binary rep
+  int * varrow = (int *)((char*)var + id*varpitch); //model id's binary rep
 
   if(id < N){
     //convert model ID (id) to binary variable list
@@ -95,7 +95,7 @@ int main (void){
   for(i=0; i<n; i++)
     for(j=0; j<p; j++)
       X[j + i*p]=pow(i+1,j);
-
+    
   //allocate memory on device for device variables
   //cudaMalloc( (void**)&dX, p*n*sizeof(float));
   cudaMalloc( (void**)&dncol, N*sizeof(int));
@@ -127,7 +127,7 @@ int main (void){
   cudaFree(dncol);
   cudaFree(dX);
   cudaFree(dXm);
-
+  
   //Print each model's model matrix
   for(k=0; k<N; k++){
     printf("Model: %d Cols: %d Var: ", k+1, ncol[k]);
