@@ -130,4 +130,26 @@ for(i in 51:60){
   fittime[i,] <- c(n,k,time[1:3])
   print(i)
 }
+
+write.csv(fittime, "fittime.csv", row.names=F)
+fittime <- read.csv("fittime.csv")
+
+
+n <- ns[1]
+k <- ks[2]
+set.seed(522)
+##initial fit because the first time always takes longer than normal for some reason
+X <- genX(n,k)
+Y <- genY(n,k,X)
+system.time(test <- gpuLm.fit(X,Y))
+
+for(i in 61:70){
+  if(i != 1){ ##already generated above
+    X <- genX(n,k)
+    Y <- genY(n,k,X)
+  }
+  time <- system.time(test <- gpuLmsearch(Y,X))
+  fittime[i,] <- c(n,k,time[1:3])
+  print(i)
+}
 write.csv(fittime, "fittime.csv", row.names=F)
