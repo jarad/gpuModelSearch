@@ -43,4 +43,5 @@ dyn.load("foo.so")
 Note: the argument should be the full path to foo.so so R can find it. E.g.:
 "folder/folder/foo.so"
 
-Then call .C("foo", as.int(arg1), as.double(arg2))
+Then call .C("foo", as.integer(arg1), as.double(arg2))
+
