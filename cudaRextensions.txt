@@ -1,0 +1,46 @@
+Writing R extensions using CUDA C.
+
+Suppose you have a function foo written in CUDA C that you want to call from R. Put
+the function in a new file, for example foo.cu, with the following tweaks:
+
+1) #include <R.h>
+
+This tells the compiler to use a set of functions used for interfacing with R.
+
+2) extern "C" void foo(int *arg1, double *arg2);
+
+A function prototype is needed for foo that fixes its name in the compiler. This is
+only necessary for function direction called from R, NOT for functions called by 
+functions which are called from R. In addition, foo must only take pointer arguments and
+be of type void.
+
+Now compiling foo is done in two steps. Normally, in the command line we type
+
+R CMD SHLIB foo.c
+
+when foo is purely C code, however with CUDA C, the process is a little different. 
+Instead of using a built in R command, we have to manually specify compiler options
+using nvcc. Here are the relevant commands:
+
+1) nvcc -g -G -Xcompiler "-I/apps/lib64/R/include -fpic" -c foo.cu foo.o
+
+This compiles the function into an object file. -g and -G are for debugging purposes.
+-Xcompiler tells nvcc that options will be passed on to the compiler. These options are
+in quotes. -I/apps/lib64/R/include adds the directory to the library path - this is the 
+directory of R.h. -fpic creates code suitable for use in a shared library. -c tell nvcc
+that we're just compiling and not linking. foo.cu is the code to be compiled, foo.o is
+the name of the output file.
+
+2) nvcc -shared foo.o -o foo.so
+
+This link the object file into a shared library. -shared tells nvcc that it's shared.
+-o foo.so tells nvcc to output it into foo.so
+
+Now open up R. To access the function, first we need to load the shared library:
+
+dyn.load("foo.so")
+
+Note: the argument should be the full path to foo.so so R can find it. E.g.:
+"folder/folder/foo.so"
+
+Then call .C("foo", as.int(arg1), as.double(arg2))
