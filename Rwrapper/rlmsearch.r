@@ -28,7 +28,7 @@ modelmat <- function(X, binid){
 
 
 ##Stores model selection info of the best 1000 models according to sortby
-gpuLmsearch <- function(Y, X, g=nrow(Y), sortby="AIC", storemodels=FALSE,
+gpuLmsearch <- function(X, Y, g=nrow(Y), sortby="AIC", storemodels=FALSE,
                         printi=FALSE){
   p <- ncol(X) #number of regressors, including intercept
   k <- p - 1 #number of possible covariates

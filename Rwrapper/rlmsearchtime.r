@@ -3,7 +3,7 @@
 ##cublas error : getQRDecompBlocked, postblock: : GPU program failed to execute
 
 
-source("~/gpuModelSearch/Rwrapper/lmsearch.r")
+source("~/gpuModelSearch/Rwrapper/rlmsearch.r")
 
 set.seed(1214)
 fittime <- data.frame(n=0, k=0, usrtime=0, systime=0, elapstime=0)
@@ -17,14 +17,14 @@ k <- ks[1]
 ##initial fit because the first time always takes longer than normal for some reason
 X <- genX(n,k)
 Y <- genY(n,k,X)
-system.time(test <- gpuLmsearch(Y,X))
+system.time(test <- gpuLmsearch(X,Y))
 
 for(i in 1:10){
   if(i != 1){ ##already generated above
     X <- genX(n,k)
     Y <- genY(n,k,X)
   }
-  time <- system.time(test <- gpuLmsearch(Y,X))
+  time <- system.time(test <- gpuLmsearch(X,Y))
   fittime[i,] <- c(n,k,time[1:3])
   print(i)
 }
@@ -37,14 +37,14 @@ n <- ns[2]
 ##initial fit because the first time always takes longer than normal for some reason
 X <- genX(n,k)
 Y <- genY(n,k,X)
-system.time(test <- gpuLmsearch(Y,X, printi=TRUE))
+system.time(test <- gpuLmsearch(X,Y, printi=TRUE))
 
 for(i in 11:20){
   if(i != 1){ ##already generated above
     X <- genX(n,k)
     Y <- genY(n,k,X)
   }
-  time <- system.time(test <- gpuLmsearch(Y,X))
+  time <- system.time(test <- gpuLmsearch(X,Y))
   fittime[i,] <- c(n,k,time[1:3])
   print(i)
 }
@@ -57,14 +57,14 @@ n <- ns[3]
 ##initial fit because the first time always takes longer than normal for some reason
 X <- genX(n,k)
 Y <- genY(n,k,X)
-system.time(test <- gpuLmsearch(Y,X, printi=TRUE))
+system.time(test <- gpuLmsearch(X,Y, printi=TRUE))
 
 for(i in 21:30){
   if(i != 1){ ##already generated above
     X <- genX(n,k)
     Y <- genY(n,k,X)
   }
-  time <- system.time(test <- gpuLmsearch(Y,X))
+  time <- system.time(test <- gpuLmsearch(X,Y))
   fittime[i,] <- c(n,k,time[1:3])
   print(i)
 }
@@ -79,14 +79,14 @@ n <- ns[4]
 ##initial fit because the first time always takes longer than normal for some reason
 X <- genX(n,k)
 Y <- genY(n,k,X)
-system.time(test <- gpuLmsearch(Y,X, printi=TRUE))
+system.time(test <- gpuLmsearch(X,Y, printi=TRUE))
 
 for(i in 31:40){
   if(i != 1){ ##already generated above
     X <- genX(n,k)
     Y <- genY(n,k,X)
   }
-  time <- system.time(test <- gpuLmsearch(Y,X))
+  time <- system.time(test <- gpuLmsearch(X,Y))
   fittime[i,] <- c(n,k,time[1:3])
   print(i)
 }
@@ -106,7 +106,7 @@ for(i in 41:50){
     X <- genX(n,k)
     Y <- genY(n,k,X)
   }
-  time <- system.time(test <- gpuLmsearch(Y,X))
+  time <- system.time(test <- gpuLmsearch(X,Y))
   fittime[i,] <- c(n,k,time[1:3])
   print(i)
 }
@@ -126,7 +126,7 @@ for(i in 51:60){
     X <- genX(n,k)
     Y <- genY(n,k,X)
   }
-  time <- system.time(test <- gpuLmsearch(Y,X))
+  time <- system.time(test <- gpuLmsearch(X,Y))
   fittime[i,] <- c(n,k,time[1:3])
   print(i)
 }
@@ -148,7 +148,7 @@ for(i in 61:70){
     X <- genX(n,k)
     Y <- genY(n,k,X)
   }
-  time <- system.time(test <- gpuLmsearch(Y,X))
+  time <- system.time(test <- gpuLmsearch(X,Y))
   fittime[i,] <- c(n,k,time[1:3])
   print(i)
 }
