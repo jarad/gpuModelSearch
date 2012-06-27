@@ -14,7 +14,7 @@ sorttype <- 2L
 
 out <- .C("lmsearch",X,as.integer(5),as.integer(3),Y,as.integer(1),g,aic=aics,bic=bics,lml=logmargs,id=models,num_save,sorttype)
 
-source("~/gpuModelSearch/Rwrapper/lmsearch.r")
+source("~/gpuModelSearch/Rwrapper/rlmsearch.r")
 
 out2 <- gpuLmsearch(X, Y, sortby="BIC")
 
