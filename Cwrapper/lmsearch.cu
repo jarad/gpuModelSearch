@@ -23,10 +23,15 @@ float bic(int n, int p, float sighat){
 }
 
 float logmarglike(int n, int k, int g, float Rsq){
-  float out = log( (1+g) / (1+ g * (1 - Rsq)) );
-  out *= ( (n-1)/2 );
-  out = out - (k/2)*log(1 + g);
-  return(out);
+  if(k==0){
+    float out = 0;
+    return(out);
+  }
+  else{
+    float out = (( ((float)n) - 1) / 2) * log((1+g)/(1+ g * (1 - Rsq)));
+    out -= ( ((float)k) / 2) * log(1 + g);
+    return(out);
+  }
 }
 
 void arraysort(float *src, int *idx, float *dest, int num_elem, int max){
@@ -68,7 +73,8 @@ void lmsearch(float *X, int *rows, int *cols, float *Y, int *ycols, int *g,
   int *rank, *pivot; 
   double *qrAux;
   double tol = 0.0001;
-  float score, *worstscore, sighat, ynorm=0, ssr, ymn=0, Rsq;
+  float score, *worstscore;
+  float sighat, ynorm=0, ssr, ymn=0, Rsq;
   int *worstid;
   
 
@@ -185,7 +191,7 @@ void lmsearch(float *X, int *rows, int *cols, float *Y, int *ycols, int *g,
       logmargs[id] = logmarglike(n, km, *g, Rsq);
       models[id] = id+1;
     }
-    if(*sorttype == 1){
+    else if(*sorttype == 1){
       arraysort(aics, worstid, worstscore, *num_save, 1);
       score = aic(n, pm, sighat);
       if(score < *worstscore){
