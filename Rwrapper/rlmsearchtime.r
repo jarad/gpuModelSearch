@@ -17,14 +17,14 @@ k <- ks[1]
 ##initial fit because the first time always takes longer than normal for some reason
 X <- genX(n,k)
 Y <- genY(n,k,X)
-system.time(test <- gpuLmsearch(X,Y))
+system.time(test <- gpurlmsearch(X,Y))
 
 for(i in 1:10){
   if(i != 1){ ##already generated above
     X <- genX(n,k)
     Y <- genY(n,k,X)
   }
-  time <- system.time(test <- gpuLmsearch(X,Y))
+  time <- system.time(test <- gpurlmsearch(X,Y))
   fittime[i,] <- c(n,k,time[1:3])
   print(i)
 }
@@ -37,14 +37,14 @@ n <- ns[2]
 ##initial fit because the first time always takes longer than normal for some reason
 X <- genX(n,k)
 Y <- genY(n,k,X)
-system.time(test <- gpuLmsearch(X,Y, printi=TRUE))
+system.time(test <- gpurlmsearch(X,Y, printi=TRUE))
 
 for(i in 11:20){
   if(i != 1){ ##already generated above
     X <- genX(n,k)
     Y <- genY(n,k,X)
   }
-  time <- system.time(test <- gpuLmsearch(X,Y))
+  time <- system.time(test <- gpurlmsearch(X,Y))
   fittime[i,] <- c(n,k,time[1:3])
   print(i)
 }
@@ -57,14 +57,14 @@ n <- ns[3]
 ##initial fit because the first time always takes longer than normal for some reason
 X <- genX(n,k)
 Y <- genY(n,k,X)
-system.time(test <- gpuLmsearch(X,Y, printi=TRUE))
+system.time(test <- gpurlmsearch(X,Y, printi=TRUE))
 
 for(i in 21:30){
   if(i != 1){ ##already generated above
     X <- genX(n,k)
     Y <- genY(n,k,X)
   }
-  time <- system.time(test <- gpuLmsearch(X,Y))
+  time <- system.time(test <- gpurlmsearch(X,Y))
   fittime[i,] <- c(n,k,time[1:3])
   print(i)
 }
@@ -79,14 +79,14 @@ n <- ns[4]
 ##initial fit because the first time always takes longer than normal for some reason
 X <- genX(n,k)
 Y <- genY(n,k,X)
-system.time(test <- gpuLmsearch(X,Y, printi=TRUE))
+system.time(test <- gpurlmsearch(X,Y, printi=TRUE))
 
 for(i in 31:40){
   if(i != 1){ ##already generated above
     X <- genX(n,k)
     Y <- genY(n,k,X)
   }
-  time <- system.time(test <- gpuLmsearch(X,Y))
+  time <- system.time(test <- gpurlmsearch(X,Y))
   fittime[i,] <- c(n,k,time[1:3])
   print(i)
 }
@@ -106,7 +106,7 @@ for(i in 41:50){
     X <- genX(n,k)
     Y <- genY(n,k,X)
   }
-  time <- system.time(test <- gpuLmsearch(X,Y))
+  time <- system.time(test <- gpurlmsearch(X,Y))
   fittime[i,] <- c(n,k,time[1:3])
   print(i)
 }
@@ -126,7 +126,7 @@ for(i in 51:60){
     X <- genX(n,k)
     Y <- genY(n,k,X)
   }
-  time <- system.time(test <- gpuLmsearch(X,Y))
+  time <- system.time(test <- gpurlmsearch(X,Y))
   fittime[i,] <- c(n,k,time[1:3])
   print(i)
 }
@@ -150,7 +150,7 @@ for(i in 61:70){
     Y <- genY(n,k,X)
   }
   ##if(i>65){
-    time <- system.time(test <- gpuLmsearch(X,Y))
+    time <- system.time(test <- gpurlmsearch(X,Y))
     fittime[i,] <- c(n,k,time[1:3])
   ##}
   print(i)
@@ -175,7 +175,7 @@ for(i in 71:80){
     Y <- genY(n,k,X)
   }
   ##if(i>77){
-    time <- system.time(test <- gpuLmsearch(X,Y))
+    time <- system.time(test <- gpurlmsearch(X,Y))
     fittime[i,] <- c(n,k,time[1:3])
   ##}
   print(i)
@@ -198,7 +198,7 @@ for(i in 81:90){
     Y <- genY(n,k,X)
   }
   ##if(i==90){
-    time <- system.time(test <- gpuLmsearch(X,Y))
+    time <- system.time(test <- gpurlmsearch(X,Y))
     fittime[i,] <- c(n,k,time[1:3])
   ##}
   print(i)
@@ -219,7 +219,7 @@ for(i in 91:100){
     X <- genX(n,k)
     Y <- genY(n,k,X)
   }
-  time <- system.time(test <- gpuLmsearch(X,Y))
+  time <- system.time(test <- gpurlmsearch(X,Y))
   fittime[i,] <- c(n,k,time[1:3])
   print(i)
 }
@@ -239,7 +239,7 @@ for(i in 101:110){
     X <- genX(n,k)
     Y <- genY(n,k,X)
   }
-  time <- system.time(test <- gpuLmsearch(X,Y))
+  time <- system.time(test <- gpurlmsearch(X,Y))
   fittime[i,] <- c(n,k,time[1:3])
   print(i)
 }
@@ -259,7 +259,7 @@ for(i in 111:120){
     X <- genX(n,k)
     Y <- genY(n,k,X)
   }
-  time <- system.time(test <- gpuLmsearch(X,Y))
+  time <- system.time(test <- gpurlmsearch(X,Y))
   fittime[i,] <- c(n,k,time[1:3])
   print(i)
 }
@@ -279,7 +279,7 @@ for(i in 121:130){
     X <- genX(n,k)
     Y <- genY(n,k,X)
   }
-  time <- system.time(test <- gpuLmsearch(X,Y))
+  time <- system.time(test <- gpurlmsearch(X,Y))
   fittime[i,] <- c(n,k,time[1:3])
   print(i)
 }
@@ -299,7 +299,7 @@ for(i in 131:140){
     X <- genX(n,k)
     Y <- genY(n,k,X)
   }
-  time <- system.time(test <- gpuLmsearch(X,Y))
+  time <- system.time(test <- gpurlmsearch(X,Y))
   fittime[i,] <- c(n,k,time[1:3])
   print(i)
 }
@@ -319,7 +319,7 @@ for(i in 141:150){
     X <- genX(n,k)
     Y <- genY(n,k,X)
   }
-  time <- system.time(test <- gpuLmsearch(X,Y))
+  time <- system.time(test <- gpurlmsearch(X,Y))
   fittime[i,] <- c(n,k,time[1:3])
   print(i)
 }
