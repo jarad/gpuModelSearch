@@ -61,4 +61,5 @@ summary(o)
 ##So two potential bugs that I think are related:
 ##1) After calling gpuLm.fit enough times, the gpu will no longer respond.
 ##2) If we fit the same model using gpuLm.fit over and over again in the same R
-## process, it takes longer to fit the model.
+## process, it tends to take longer to fit the model as the number of iterations
+## increases.
