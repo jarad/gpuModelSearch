@@ -149,10 +149,10 @@ for(i in 61:70){
     X <- genX(n,k)
     Y <- genY(n,k,X)
   }
-  ##if(i>65){
+  if(i>66){
     time <- system.time(test <- gpurlmsearch(X,Y))
     fittime[i,] <- c(n,k,time[1:3])
-  ##}
+  }
   print(i)
 }
 
