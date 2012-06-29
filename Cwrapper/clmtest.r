@@ -17,8 +17,3 @@ out <- .C("lmsearch",X,as.integer(5),as.integer(3),Y,as.integer(1),g,aic=aics,bi
 source("~/gpuModelSearch/Rwrapper/rlmsearch.r")
 
 out2 <- gpuLmsearch(X, Y, sortby="BIC")
-
-##to compile the code, run this:
-##  nvcc -g -G -Xcompiler "-I/apps/lib64/R/include -I/home/simpsonm/gpuModelSearch/gputools/src -fpic" -c lmsearch.cu -o lmsearch.o
-
-##  nvcc -shared -Xlinker "-L/usr/local/cuda/lib -lcublas" lmsearch.o cuseful.o lsfit.o qrdecomp.o -o lmsearch.so
