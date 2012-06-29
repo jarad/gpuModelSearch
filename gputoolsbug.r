@@ -1,7 +1,7 @@
 ##This script reproduces a bug in gputools. After calling gpuLm.fit enough times in
 ##one session, I get the following error on any call to gpuLm.fit:
 
-##Error in gpuLm.fit(X, Y) : 
+##Error in gpuLm.fit(X, Y) :
 ##  cublas error : getQRDecompBlocked, postblock: : GPU program failed to execute
 
 ##Closing the R process and reopening it solves the problem. The following script
@@ -49,11 +49,16 @@ summary(o)
 
 ##here's the table of coefficients I get:
 ##Coefficients:
-##             Estimate Std. Error t value Pr(>|t|)    
+##             Estimate Std. Error t value Pr(>|t|)
 ##(Intercept) 1.401e-01  9.112e-05  1538.1   <2e-16 ***
 ##i           2.360e-07  1.198e-08    19.7   <2e-16 ***
 
-##The slope really small, but positive and highly significant. So each time we fit
+##The slope is really small but positive and highly significant. So each time we fit
 ##the model, it takes slightly longer to fit. The increase is visible to the naked
 ##eye if I time how long it takes to fit all possible submodels. I bet it would also
 ##be visible for large enough n and k.
+
+##So two potential bugs that I think are related:
+##1) After calling gpuLm.fit enough times, the gpu will no longer respond.
+##2) If we fit the same model using gpuLm.fit over and over again in the same R
+## process, it takes longer to fit the model.
