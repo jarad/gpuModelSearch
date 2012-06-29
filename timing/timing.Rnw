@@ -1,0 +1,136 @@
+\documentclass{article}
+\usepackage{graphicx, color, amssymb, amsmath, bm, rotating, graphics,
+epsfig, multicol}
+\usepackage[sc]{mathpazo}
+\usepackage[T1]{fontenc}
+\usepackage{geometry}
+\geometry{verbose,tmargin=2.5cm,bmargin=2.5cm,lmargin=2.5cm,rmargin=2.5cm}
+\setcounter{secnumdepth}{2}
+\setcounter{tocdepth}{2}
+\usepackage{url}
+\usepackage[unicode=true,pdfusetitle,
+ bookmarks=true,bookmarksnumbered=true,bookmarksopen=true,bookmarksopenlevel=2,
+ breaklinks=false,pdfborder={0 0 1},backref=false,colorlinks=false]
+ {hyperref}
+\hypersetup{
+ pdfstartview={XYZ null null 1}}
+\usepackage{breakurl}
+\begin{document}
+
+% \SweaveOpts{fig.path='figure/', fig.align='center', fig.show='hold'}
+
+<<setup, include=FALSE, cache=FALSE>>=
+options(replace.assign=TRUE,width=90)
+@
+
+
+\title{R Wrapper vs. C Wrapper}
+
+
+\author{Matt Simpson}
+
+\maketitle
+
+In order to assess how long it takes to fit all possible sub models
+using either the R or C wrappers, I varied the number of observations
+($n$) and the number of possible covariates ($k$) among a number of
+levels. Table \ref{sam} contains all combinations of factors I sampled
+along with their sample size - 10 in all cases.
+
+<<sample-size, results=tex, echo=F>>=
+library(ggplot2)
+library(xtable)
+rtime <- read.csv("rfittime.csv")
+ctime <- read.csv("cfittime.csv")
+rtime$wrap <- "R"
+ctime$wrap <- "C"
+data <- rbind(rtime, ctime)
+data2 <- data[-201,]
+leng <- aggregate(data[,3], list(n=data$n,k=data$k,wrap=data$wrap), "length")
+colnames(leng)[4] <- "sample.size"
+leng$n <- as.integer(leng$n)
+xtable(leng, caption="Sample sizes of various combinations of factors, including number of observations (n), number of possible covariates (k), and which wrapper was used (wrap)", label="sam")
+@
+
+\begin{figure}
+  \centering
+<<k10, fig.width=4, fig.height=4, out.width='.7\\textwidth', echo=F>>=
+mns <- aggregate(data[,3:5], list(n=data$n,k=data$k,wrap=data$wrap), "mean")
+mns2 <- aggregate(data2[,3:5], list(n=data2$n,k=data2$k,wrap=data2$wrap), "mean")
+qplot(data=mns[mns$k==10,],x=log(n), y=elapstime, color=wrap, geom="line")
+@
+\caption{Time to fit (in seconds) vs. $\log(n)$ by wrapper type.}
+\label{k10}
+\end{figure}
+
+First we plot the time to fit all possible models by log sample size $\log(n)$
+in figure \ref{k10}, with the number of covariates ($k$) held constant
+at 10. As expected, time to fit increases as the sample size
+increases. For most of the domain, the C wrapper fits all possible
+models slightly faster except for the largest sample size:
+$1,000,000$. Inspection of the actual data reveals why.
+
+<<k10n1000000sam, results=tex, echo=F>>=
+data$n <- as.integer(data$n)
+dat <- data[data$n==1000000 & data$k==10,c(1,2,5,6)]
+xtable(dat, caption="All fit times for n=1,000,000 and k=10", label="k10n1msam")
+@
+
+As table \ref{k10n1msam} shows, the time to fit the first iteration of
+the C wrapper is nearly twice as long as every other iteration. On our
+system, the first time R makes a call to the gpu it it takes
+substantially longer than usual, then every call after that is
+quick. My code to fit all possible submodels takes this into account
+by making a call to the gpu before timing anything, but this still may
+be the source of the longer fit time. It's worth noting that I
+couldn't reproduce the long fit time by starting a fresh R process
+generating the same full model matrix and response vector. Removing
+the outlier yields the expected graph. The C wrapper is now faster
+than the R wrapper for every sample size, though again still only
+slightly so.
+
+\begin{figure}
+  \centering
+<<k10out, fig.width=4, fig.height=4, out.width='.7\\textwidth', echo=F>>=
+qplot(data=mns2[mns2$k==10,],x=log(n), y=elapstime, color=wrap, geom="line")
+@
+\caption{Time to fit (in seconds) vs. $\log(n)$ by wrapper type,
+  $k=10$, outlier removed.}
+\label{k10out}
+\end{figure}
+
+The data for $k=5$ tell a similar story in figure \ref{k5}: the C
+wrapper is slightly faster at every sample size than the Rwrapper. The
+larger disparity is between the fit times of all possible sub models
+with $k=5$ and $k=10$ - a difference of over an order of
+magnitude. Figure \ref{n100} again tells the same story when we hold $n$
+constant at 100 and increase k. The Cwrapper once again is slightly
+faster than the Rwrapper, but only slightly so. The difference may
+become practically significant as k gets large, but due to
+a suspected bug in the gputools code, the gpu will stop responding
+before it can fit all possible models when k is larger than 13 -
+making it impossible to get even a single sample.
+
+\begin{figure}
+  \centering
+<<k5, fig.width=4, fig.height=4, out.width='.7\\textwidth', echo=F>>=
+qplot(data=mns2[mns2$k==5,],x=log(n), y=elapstime, color=wrap, geom="line")
+@
+\caption{Time to fit (in seconds) vs. $\log(n)$ by wrapper type,
+  $k=5$.}
+\label{k5}
+\end{figure}
+
+\begin{figure}
+  \centering
+<<n100, fig.width=4, fig.height=4, out.width='.7\\textwidth', echo=F>>=
+qplot(data=mns2[mns2$n==100,],x=k, y=elapstime, color=wrap, geom="line")
+@
+\caption{Time to fit (in seconds) vs. $k$ by wrapper type,
+  $n=100$. Note that due to a suspected bug in gputools, k must be
+  kept small.}
+\label{n100}
+\end{figure}
+
+
+\end{document}
