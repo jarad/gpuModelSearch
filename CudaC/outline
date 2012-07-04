@@ -1,0 +1,11 @@
+Outline of the algorithm to fit each model simultaneously.
+
+The gputools algorithm employs a Householder transformation method that, with one exception, uses no new kernels. It uses mainly cublas library functions along with a couple of functions from the cuda library. The exception is a function that computes the column norms of each column in the model matrix. Since in regression model selection the only difference between two different models is which columns of the full model matrix are included, this step only needs to occur once for the full model matrix. At that point, each sub-model can make a call to the appropriate element of the full colnorms vector as needed.
+
+So it should be possible calculate the colnorms, then implement the rest of the algorithm on a single thread for each model. The rough algorithm looks something like this:
+
+1) Copy full model matrix X to the gpu.
+2) Calculate column norms for X using gputools' function
+3) In a thread for each possible model, use the householder tranformation method employed by gputools to fit the model.
+
+In order to avoid storing a model matrix for each possible model for step 3, I'll use a function that takes a model id and column # of that model's matrix and outputs the appropriate column number in the full model matrix.
