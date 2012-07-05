@@ -48,6 +48,7 @@ ctime$wrap <- "C"
 data <- rbind(rtime, ctime)
 data2 <- data[-201,]
 ratdata[,3:5] <- rtime[,3:5] / ctime[,3:5]
+colnames(ratdata)[3:5] <- c("usr ratio", "sys ratio", "elaps ratio")
 ratdata2 <- ratdata[-51,]
 
 leng <- aggregate(data[,3], list(n=data$n,k=data$k,wrap=data$wrap), "length")
@@ -67,12 +68,22 @@ qplot(data=mns[mns$k==10,],x=log(n), y=elapstime, color=wrap, geom="line")
 \label{k10}
 \end{figure}
 
-First we plot the time to fit all possible models by log sample size $\log(n)$
-in figure \ref{k10}, with the number of covariates ($k$) held constant
-at 10. As expected, time to fit increases as the sample size
-increases. For most of the domain, the C wrapper fits all possible
-models slightly faster except for the largest sample size:
-$1,000,000$. Inspection of the actual data reveals why.
+First we plot the time to fit all possible models by log sample size
+$\log(n)$ in figure \ref{k10}, with the number of covariates ($k$)
+held constant at 10. As expected, time to fit increases as the sample
+size increases. For most of the domain, the C wrapper fits all
+possible models slightly faster except for the largest sample size:
+$1,000,000$. Plotting the ratio of R wrapper fit time to C wrapper fit
+time reveals a similar story in figure \ref{k10rat}. For sample sizes
+of 100 and 1000, the C wrapper is about
+\Sexpr{round(ratmns[ratmns$k==10 & ratmns$n==100, 5],1)} times faster
+than the R wrapper. This ratio steadily increases to nearly
+\Sexpr{round(ratmns[ratmns$k==10 & ratmns$n==10000, 5],1)} times
+faster at $n=10,000$ before falling to roughly
+\Sexpr{round(ratmns[ratmns$k==10 & ratmns$n==100000, 5],1)} times
+faster at $n=100,000$ and just about even speed in terms of ratios at
+$n=1,000,000$. The C wrapper's poor performance relative to the R
+wrapper is rather surprising, but inspection of the actual data reveals why.
 
 \begin{figure}
   \centering
@@ -80,8 +91,9 @@ $1,000,000$. Inspection of the actual data reveals why.
 ratmns <- aggregate(ratdata[,3:5], list(n=ratdata$n,k=ratdata$k), "mean")
 ratmns2 <- aggregate(ratdata2[,3:5], list(n=ratdata2$n,k=ratdata2$k), "mean")
 qplot(data=ratmns[ratmns$k==10,],x=log(n), y=elapstime, geom="line")
-@ 
-\caption{Ration of R wrapper time to fit over C wrapper time to fit vs. $\log(n)$.}
+@
+\caption{Ratio of R wrapper time to fit over C wrapper time to fit
+  vs. $\log(n)$ for $k=10$.}
 \label{k10rat}
 \end{figure}
 
@@ -100,10 +112,14 @@ quick. My code to fit all possible submodels takes this into account
 by making a call to the gpu before timing anything, but this still may
 be the source of the longer fit time. It's worth noting that I
 couldn't reproduce the long fit time by starting a fresh R process
-generating the same full model matrix and response vector. Removing
-the outlier yields the expected graph. The C wrapper is now faster
-than the R wrapper for every sample size, though again still only
-slightly so.
+and generating the same full model matrix and response vector. Removing
+the outlier yields the expected graph in figure \ref{k10out}: the C
+wrapper is now faster than the R wrapper according to average time to
+fit for every sample size. Figure \ref{k10ratout} contains the graph
+of the ratios with the outlier removed. The graph looks fairly similar
+to before, but now the C wrapper is about
+\Sexpr{round(ratmns[ratmns$k==10 & ratmns$n==1000000, 5],1)} times
+faster than the R wrapper.
 
 \begin{figure}
   \centering
@@ -115,17 +131,41 @@ qplot(data=mns2[mns2$k==10,],x=log(n), y=elapstime, color=wrap, geom="line")
 \label{k10out}
 \end{figure}
 
-The data for $k=5$ tell a similar story in figure \ref{k5}: the C
-wrapper is slightly faster at every sample size than the Rwrapper. The
-larger disparity is between the fit times of all possible sub models
-with $k=5$ and $k=10$ - a difference of over an order of
-magnitude. Figure \ref{n100} again tells the same story when we hold $n$
-constant at 100 and increase k. The Cwrapper once again is slightly
-faster than the Rwrapper, but only slightly so. The difference may
-become practically significant as k gets large, but due to
-a suspected bug in the gputools code, the gpu will stop responding
-before it can fit all possible models when k is larger than 13 -
-making it impossible to get even a single sample.
+\begin{figure}
+  \centering
+<<k10ratout, fig.width=4, fig.height=4, out.width='.7\\textwidth', echo=F>>=
+qplot(data=ratmns2[ratmns2$k==10,],x=log(n), y=elapstime, geom="line")
+@
+\caption{Ratio of R wrapper time to fit over C wrapper time to fit vs. $\log(n)$for $k=10$, outlier removed.}
+\label{k10ratout}
+\end{figure}
+
+The data for $k=5$ tell a slightly different story in figure \ref{k5}: the C
+wrapper is slightly faster than the R wrapper at small sample sizes,
+but as $n$ increases the R wrapper eventually becomes faster at
+$n=1,000,000$.. The difference is small though; the larger disparity
+is between the fit times of all possible sub models with $k=5$ and
+$k=10$ - a difference of over an order of magnitude. Figure
+\ref{k5rat} shows the same phenomenon in terms of ratios. The C
+wrapper starts out only about \Sexpr{round(ratmns[ratmns$k==5 &
+  ratmns$n==100, 5],1)} times faster than the R wrapper at $n=100$,
+but increases to \Sexpr{round(ratmns[ratmns$k==5 & ratmns$n==10000, 5],1)} time
+faster at $n=10,000$. Eventually, the speed of the C wrapper falls to
+\Sexpr{round(ratmns[ratmns$k==5 & ratmns$n==1000000, 5],1)} times as
+fast as the R wrapper at $n=1,000,000$. So for large $n$, it appears
+that the R wrapper outperforms the C wrapper.
+
+
+Figure \ref{n100} tells the story we expect when $n$ is held constant
+at 100 and k increase. The Cwrapper once again is slightly faster than
+the Rwrapper. The difference may become practically significant as k
+gets large, but due to a suspected bug in the gputools code, the gpu
+will stop responding before it can fit all possible models when k is
+larger than 13 - making it impossible to get even a single sample. The
+ratios show in figure \ref{n100rat} that the C wrapper is roughly
+\Sexpr{round(ratmns[ratmns$k==5 & ratmns$n==100, 5],1)} times faster
+than the R wrapper over the entire domain of $k$, which isn't too
+surprising since $k$ is limited by what appears to be a bug.
 
 \begin{figure}
   \centering
@@ -139,6 +179,15 @@ qplot(data=mns2[mns2$k==5,],x=log(n), y=elapstime, color=wrap, geom="line")
 
 \begin{figure}
   \centering
+<<k5rat, fig.width=4, fig.height=4, out.width='.7\\textwidth', echo=F>>=
+qplot(data=ratmns2[ratmns2$k==5,],x=log(n), y=elapstime, geom="line")
+@
+\caption{Ratio of R wrapper time to fit over C wrapper time to fit vs. $\log(n)$for $k=5$.}
+\label{k5rat}
+\end{figure}
+
+\begin{figure}
+  \centering
 <<n100, fig.width=4, fig.height=4, out.width='.7\\textwidth', echo=F>>=
 qplot(data=mns2[mns2$n==100,],x=k, y=elapstime, color=wrap, geom="line")
 @
@@ -148,5 +197,40 @@ qplot(data=mns2[mns2$n==100,],x=k, y=elapstime, color=wrap, geom="line")
 \label{n100}
 \end{figure}
 
+\begin{figure}
+  \centering
+<<n100rat, fig.width=4, fig.height=4, out.width='.7\\textwidth', echo=F>>=
+qplot(data=ratmns2[ratmns2$n==100,],x=k, y=elapstime, geom="line")
+@
+\caption{Ratio of R wrapper time to fit over C wrapper time to fit vs. $k$for $n=100$.}
+\label{n100rat}
+\end{figure}
+
+It's surprising that the R wrapper is outperforming the C wrapper in
+any of the cases examined above, especially for large $n$. Only in one
+case was an outlier affecting the results. However, there may be
+another illegitimate cause of these results. It seems that as gputools
+fits models over time in the same R process, it takes longer to fit
+those models (see \verb0 gputoolsbug.r \verb0 in the main folder). It
+may be that the order in which I fit models with different
+compinations of $n$ and $k$ for the two wrappers is having some effect
+on the fit times causing the R wrapper to appear faster in some cases.
+
+This doesn't seem extremely likely to me, but it is at least a
+possible source of error that can be controlled. Since the time to fit
+only slows down within the same R process, there is a natural way
+to control this: restart the R process after fitting all submodels for
+a given full model matrix. This would require re-fitting all of the
+models and collecting updated data. I don't think this will eliminate
+the R wrapper's superiority for large $n$ is that the bug that occurs when
+$k$ increases also occurs when $n$ increases. For both wrappers at
+$n=1,000,000$, I already have to kill the R process after fitting all
+possible models for a given full model matrix in order to avoid the bug.
+
+With this in mind, I think it would also be prudent to explore a few
+more values of $n$ - a few values between 100,000 and 1,000,000 as
+well as a few values over 1,000,000 - so long as the bug doesn't
+prevent me from fitting all possible models with such a large sample
+size.
 
 \end{document}
