@@ -42,10 +42,14 @@ library(ggplot2)
 library(xtable)
 rtime <- read.csv("rfittime.csv")
 ctime <- read.csv("cfittime.csv")
+ratdata <- rtime
 rtime$wrap <- "R"
 ctime$wrap <- "C"
 data <- rbind(rtime, ctime)
 data2 <- data[-201,]
+ratdata[,3:5] <- rtime[,3:5] / ctime[,3:5]
+ratdata2 <- ratdata[-51,]
+
 leng <- aggregate(data[,3], list(n=data$n,k=data$k,wrap=data$wrap), "length")
 colnames(leng)[4] <- "sample.size"
 leng$n <- as.integer(leng$n)
@@ -69,6 +73,18 @@ at 10. As expected, time to fit increases as the sample size
 increases. For most of the domain, the C wrapper fits all possible
 models slightly faster except for the largest sample size:
 $1,000,000$. Inspection of the actual data reveals why.
+
+\begin{figure}
+  \centering
+<<k10rat, fig.width=4, fig.height=4, out.width='.7\\textwidth', echo=F>>=
+ratmns <- aggregate(ratdata[,3:5], list(n=ratdata$n,k=ratdata$k), "mean")
+ratmns2 <- aggregate(ratdata2[,3:5], list(n=ratdata2$n,k=ratdata2$k), "mean")
+qplot(data=ratmns[ratmns$k==10,],x=log(n), y=elapstime, geom="line")
+@ 
+\caption{Ration of R wrapper time to fit over C wrapper time to fit vs. $\log(n)$.}
+\label{k10rat}
+\end{figure}
+
 
 <<k10n1000000sam, results=tex, echo=F>>=
 data$n <- as.integer(data$n)
