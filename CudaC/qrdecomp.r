@@ -248,9 +248,62 @@ GetQRDecompBlocked <- function(n, p, X, ColNorms, blockSize, scales, Beta,
 
   rank <- rk
 
-  return(X)
+}
+
+getCRE <- function(QR, rows, cols, rank, qrAux, yCols, coeffs, resids, effects){
+  dQR <- QR
+  maxIdx <- min(rank, rows)
+  
+  diags <- rep(0,rank)
+  for(i in 1:rank)
+    diags[i] <- QR[i,i]
+
+  for(i in 1:maxIdx)
+    dQR[i,i] <- qrAux[i]
+
+  pEffects <- 1
+  for(i in 1:yCols){
+    pQR <- c(1,1)
+    for(k in 1:maxIdx){
+
+      t <- t(c(QR[,pQR[2]])) %*% t(t(c(effects[pEffects:rows])))
+      t <- t*-1.0/qrAux[k]
+      effects[pEffects:rows] <- effects[pEffects:rows]*t
+      
+      pQR <- pQR + c(1,1)
+    }
+
+    pEffects <-  pEffects + 1
+  }
+
+  if(rank < rows)
+    resids[(rank+1):(rows)] <- effects[(rank+1):rows]
+    
+  for(k in seq(maxIdx, 1)){
+    t <- -1.0 / qrAux[k] * t(QR[k:rows,k]) %*% t(t(c(resids[k:rows])))
+
+    resids[k:rows] <- t*QR[k:rows,k]
+    
+  }
+
+  for(i in 1:maxIdx)
+    dQR[i,i] <- effects[i]
+
+  coeffs <- effects[1:rank]
+
+  for(k in seq(rank,1)){
+    coeffs[k] <- 1/diags[k]
+    t <- coeffs[k]
+    coeffs[1:k] <- coeffs[1:k] - dQR[k:rows,k]
+  }
+  coeffs[1] <- coeffs[1]/diags[1]
+  
+
+  
+  return(list(qr=QR, qrAux=qrAux, rank=rank, coeffs=coeffs, resids=resids, effects=effects)
   
 }
+
 
 n <- 10
 p <- 2
@@ -276,8 +329,8 @@ T <- matrix(0, blockSize, blockSize)
 W <- matrix(0, ncol=blockSize, nrow=n)
 V <- W
 rank <- 0
-WtR <- matrix(0, nrow=blockSize, ncol=-(p-blockSize))
-pivot <- rep(0,p)
+WtR <- matrix(0, nrow=blockSize, ncol=abs(p-blockSize))
+pivot <- 1:p
 qrAux <- pivot
 Beta <- rep(0, blockSize)
 scales <- Beta
@@ -293,8 +346,11 @@ for(i in 1:n)
       if(i>j)
         R[i,j] <- 0
 
+library(gputools)
 
-R2 <- gpuQr(X)$qr
+R2list <- gpuQr(X)
+R2 <- R2list$qr
+piv <- R2list$pivot
 attr(R2, "Csingle") <- NULL
 
 for(i in 1:n)
@@ -304,6 +360,8 @@ for(i in 1:n)
 
 bR <- solve(t(R)%*%R)%*%t(X)%*%t(t(Y))
 bR2 <- solve(t(R2)%*%R2)%*%t(R2)%*%t(t(Y))
+bR2p<- solve(t(R2)%*%R2)%*%t(R2)%*%t(t(Y[piv]))
 
 lmb <- lm(Y~X[,2])
 blm <- lmb$coef
+ 
