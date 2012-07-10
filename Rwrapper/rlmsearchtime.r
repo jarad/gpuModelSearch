@@ -30,8 +30,10 @@ for(i in 1:10){
 }
 
 write.csv(fittime, "rfittime.csv", row.names=F)
-fittime <- read.csv("rfittime.csv")
 
+fittime <- read.csv("rfittime.csv")
+ns <- c(100, 1000, 5000, 10000, 100000, 1000000)
+ks <- c(10, 11, 12, 13, 5)
 set.seed(310)
 n <- ns[2]
 ##initial fit because the first time always takes longer than normal for some reason
@@ -50,8 +52,10 @@ for(i in 11:20){
 }
 
 write.csv(fittime, "rfittime.csv", row.names=F)
-fittime <- read.csv("rfittime.csv")
 
+fittime <- read.csv("rfittime.csv")
+ns <- c(100, 1000, 5000, 10000, 100000, 1000000)
+ks <- c(10, 11, 12, 13, 5)
 set.seed(333)
 n <- ns[3]
 ##initial fit because the first time always takes longer than normal for some reason
@@ -72,8 +76,10 @@ for(i in 21:30){
 
 
 write.csv(fittime, "fittime.csv", row.names=F)
-fittime <- read.csv("fittime.csv")
 
+fittime <- read.csv("fittime.csv")
+ns <- c(100, 1000, 5000, 10000, 100000, 1000000)
+ks <- c(10, 11, 12, 13, 5)
 set.seed(345)
 n <- ns[4]
 ##initial fit because the first time always takes longer than normal for some reason
@@ -92,8 +98,11 @@ for(i in 31:40){
 }
 
 write.csv(fittime, "rfittime.csv", row.names=F)
-fittime <- read.csv("rfittime.csv")
 
+
+fittime <- read.csv("rfittime.csv")
+ns <- c(100, 1000, 5000, 10000, 100000, 1000000)
+ks <- c(10, 11, 12, 13, 5)
 set.seed(351)
 n <- ns[5]
 ##initial fit because the first time always takes longer than normal for some reason
@@ -112,8 +121,10 @@ for(i in 41:50){
 }
 
 write.csv(fittime, "rfittime.csv", row.names=F)
-fittime <- read.csv("rfittime.csv")
 
+fittime <- read.csv("rfittime.csv")
+ns <- c(100, 1000, 5000, 10000, 100000, 1000000)
+ks <- c(10, 11, 12, 13, 5)
 set.seed(424)
 n <- ns[6]
 ##initial fit because the first time always takes longer than normal for some reason
@@ -134,8 +145,8 @@ for(i in 51:60){
 write.csv(fittime, "rfittime.csv", row.names=F)
 
 fittime <- read.csv("rfittime.csv")
-
-
+ns <- c(100, 1000, 5000, 10000, 100000, 1000000)
+ks <- c(10, 11, 12, 13, 5)
 n <- ns[1]
 k <- ks[2]
 set.seed(522)
@@ -160,7 +171,8 @@ for(i in 61:70){
 write.csv(fittime, "rfittime.csv", row.names=F)
 
 fittime <- read.csv("rfittime.csv")
-
+ns <- c(100, 1000, 5000, 10000, 100000, 1000000)
+ks <- c(10, 11, 12, 13, 5)
 n <- ns[1]
 k <- ks[3]
 set.seed(358)
@@ -184,6 +196,8 @@ for(i in 71:80){
 write.csv(fittime, "rfittime.csv", row.names=F)
 
 fittime <- read.csv("rfittime.csv")
+ns <- c(100, 1000, 5000, 10000, 100000, 1000000)
+ks <- c(10, 11, 12, 13, 5)
 n <- ns[1]
 k <- ks[4]
 set.seed(410)
@@ -207,6 +221,8 @@ for(i in 81:90){
 write.csv(fittime, "rfittime.csv", row.names=F)
 
 fittime <- read.csv("rfittime.csv")
+ns <- c(100, 1000, 5000, 10000, 100000, 1000000)
+ks <- c(10, 11, 12, 13, 5)
 n <- ns[1]
 k <- ks[5]
 set.seed(446)
@@ -227,6 +243,8 @@ for(i in 91:100){
 write.csv(fittime, "rfittime.csv", row.names=F)
 
 fittime <- read.csv("rfittime.csv")
+ns <- c(100, 1000, 5000, 10000, 100000, 1000000)
+ks <- c(10, 11, 12, 13, 5)
 n <- ns[2]
 k <- ks[5]
 set.seed(448)
@@ -247,6 +265,8 @@ for(i in 101:110){
 write.csv(fittime, "rfittime.csv", row.names=F)
 
 fittime <- read.csv("rfittime.csv")
+ns <- c(100, 1000, 5000, 10000, 100000, 1000000)
+ks <- c(10, 11, 12, 13, 5)
 n <- ns[3]
 k <- ks[5]
 set.seed(449)
@@ -267,6 +287,8 @@ for(i in 111:120){
 write.csv(fittime, "rfittime.csv", row.names=F)
 
 fittime <- read.csv("rfittime.csv")
+ns <- c(100, 1000, 5000, 10000, 100000, 1000000)
+ks <- c(10, 11, 12, 13, 5)
 n <- ns[4]
 k <- ks[5]
 set.seed(450)
@@ -287,6 +309,8 @@ for(i in 121:130){
 write.csv(fittime, "rfittime.csv", row.names=F)
 
 fittime <- read.csv("rfittime.csv")
+ns <- c(100, 1000, 5000, 10000, 100000, 1000000)
+ks <- c(10, 11, 12, 13, 5)
 n <- ns[5]
 k <- ks[5]
 set.seed(451)
@@ -307,6 +331,8 @@ for(i in 131:140){
 write.csv(fittime, "rfittime.csv", row.names=F)
 
 fittime <- read.csv("rfittime.csv")
+ns <- c(100, 1000, 5000, 10000, 100000, 1000000)
+ks <- c(10, 11, 12, 13, 5)
 n <- ns[6]
 k <- ks[5]
 set.seed(453)

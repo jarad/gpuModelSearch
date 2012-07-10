@@ -59,7 +59,8 @@ gpurlmsearch <- function(X, Y, g=nrow(Y), sortby="AIC", storemodels=FALSE,
   Bic <- rep(Inf, nlist)
   LogMargLike <- rep(-Inf, nlist)
   Vars <- paste(ID)
-  
+  maxlml <- -Inf
+
 
   ##for each model
   while(i <= M){
@@ -73,32 +74,57 @@ gpurlmsearch <- function(X, Y, g=nrow(Y), sortby="AIC", storemodels=FALSE,
     sighat <- ssr/gout$df.residual #estimate of sigma^2
     Rsq <- 1 - ssr/Ynorm #R^2
 
+    lml <- logmarglik(n, km, g, Rsq)
+    a <- aic(n,pm,sighat)
+    b <- bic(n,pm,sighat)
+
     ##save model selection info
     if(sortby=="AIC"){
       WorstIdx <- which.max(Aic)
       WorstScore <- Aic[WorstIdx]
-      Score <- aic(n,pm,sighat)
+      Score <- a
     }
     else if(sortby=="BIC"){
       WorstIdx <- which.max(Bic)
       WorstScore <- Bic[WorstIdx]
-      Score <- bic(n,pm,sighat)
+      Score <- b
     }
     else{
       WorstIdx <- which.min(LMargLike)
       WorstScore <- - LogMargLike[WorstIdx]
-      Score <- - logmarglik(n, km, g, Rsq)
+      Score <- - lml
     }
 
+    print(i)
+    print(c(lml, maxlml))
+    if(lml > maxlml){
+      if(i == 1){
+        maxlml <- lml
+        totalprob <- 1
+      }
+      else{
+        print(c("lml > maxlml", totalprob))
+        totalprob <- totalprob * exp(maxlml - lml) + 1
+        print(totalprob)
+        maxlml <- lml
+      }
+    }
+    else{
+      print(c("lml <= maxlml", totalprob))
+      totalprob <- totalprob + exp(lml - maxlml)
+      print(totalprob)
+    }
+
+    
     if(Score < WorstScore){
       ID[WorstIdx] <- i
       BinId[WorstIdx] <- paste(binid, collapse="")
-      Aic[WorstIdx] <- aic(n,pm,sighat)
-      Bic[WorstIdx] <- bic(n,pm,sighat)
-      LogMargLike[WorstIdx] <- logmarglik(n, km, g, Rsq)
+      Aic[WorstIdx] <- a
+      Bic[WorstIdx] <- b
+      LogMargLike[WorstIdx] <- lml
       Vars[WorstIdx] <- paste(colnames(Xm),collapse=" ")
     }
-
+    
     ##save full model info, if wanted
     if(storemodels == TRUE){
       gout$BinID <- binid
@@ -114,11 +140,16 @@ gpurlmsearch <- function(X, Y, g=nrow(Y), sortby="AIC", storemodels=FALSE,
   Br <- rank(Bic) ##create rankings by BIC
   Mr <- rank(-LogMargLike) ##create rankings by Marginal Likelihood
 
+  Prob <- exp(LogMargLike - maxlml) / totalprob
+  OtherProb <-  1 - sum(Prob)
+  
+
   ##create output list, out$list contains data frame of model selection info
   ##out$models contains model specific information - coefficients, resids, et
   out <- list()
+  out$OtherProb <- OtherProb
   out$list <- data.frame(ID=ID, BinaryID=BinId, AIC=Aic, AICrank=Ar, BIC=Bic,
-                         BICrank=Br, LogMargLike=LogMargLike, MLrank=Mr, Variables=Vars)
+                         BICrank=Br, LogMargLike=LogMargLike, Prob=Prob, MLrank=Mr, Variables=Vars)
   if(storemodels == TRUE)
     out$models <- models
 
