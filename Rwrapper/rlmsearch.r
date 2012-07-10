@@ -95,24 +95,18 @@ gpurlmsearch <- function(X, Y, g=nrow(Y), sortby="AIC", storemodels=FALSE,
       Score <- - lml
     }
 
-    print(i)
-    print(c(lml, maxlml))
     if(lml > maxlml){
       if(i == 1){
         maxlml <- lml
         totalprob <- 1
       }
       else{
-        print(c("lml > maxlml", totalprob))
         totalprob <- totalprob * exp(maxlml - lml) + 1
-        print(totalprob)
         maxlml <- lml
       }
     }
     else{
-      print(c("lml <= maxlml", totalprob))
       totalprob <- totalprob + exp(lml - maxlml)
-      print(totalprob)
     }
 
     
