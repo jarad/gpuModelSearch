@@ -5,7 +5,6 @@
 
 source("~/gpuModelSearch/Cwrapper/clmsearch.r")
 library(gputools)
-
 set.seed(1214)
 fittime <- data.frame(n=0, k=0, usrtime=0, systime=0, elapstime=0)
 
@@ -29,7 +28,7 @@ for(i in 1:10){
   fittime[i,] <- c(n,k,time[1:3])
   print(i)
 }
-
+ 
 write.csv(fittime, "cfittime.csv", row.names=F)
 fittime <- read.csv("cfittime.csv")
 

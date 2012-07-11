@@ -34,19 +34,22 @@ gpuclmsearch.fit <- function(X, Y, g, sorttype, nsave){
   bics <- aics
   lmls <- -aics
   models <- integer(nsave)
+  probs <- single(nsave)
+  otherprob <- single(1)
   mode(aics) <- "single"
   mode(bics) <- "single"
   mode(lmls) <- "single"
 
-  z <- .C("lmsearch", X, n, p, Y, ycols, g, aic=aics, bic=bics, lml=lmls, id=models,
-          nsave, sort)
+  z <- .C("lmsearch", X, n, p, Y, ycols, g, aic=aics, bic=bics, lml=lmls,
+          probs=probs, otherprob=otherprob, id=models, nsave, sort)
 
 
 
   attr(z$aic, "Csingle") <- NULL
   attr(z$bin, "Csingle") <- NULL
   attr(z$lml, "Csingle") <- NULL
-
+  attr(z$probs, "Csingle") <- NULL
+  attr(z$otherprob, "Csingle") <- NULL
 
   binid <- modelid(z$id, p-1, nsave)
   
@@ -54,6 +57,7 @@ gpuclmsearch.fit <- function(X, Y, g, sorttype, nsave){
                     AICrank=rank(z$aic,ties.method="first"),
                     BIC=z$bic, BICrank=rank(z$bic,ties.method="first"),
                     LogMargLike=z$lml, LMLrank=rank(-z$lml,ties.method="first"),
+                    PostProb=z$probs,
                     Variables=modelvars(binid, colnames(X)[-1], nsave) )
 
   if(sorttype=="AIC"){
@@ -66,6 +70,8 @@ gpuclmsearch.fit <- function(X, Y, g, sorttype, nsave){
     out <- out[order(out$LMLrank),]
   }
 
+  out <- list(Models=out, OtherProb=z$otherprob)
+  
   return(out)
   
   

@@ -11,7 +11,8 @@
 //function prototype for the function to be called from R
 extern "C" void lmsearch(float *X, int *rows, int *cols, float *Y, int *ycols, 
 			 int *g, float *aics, float *bics, float *logmargs, 
-			 int *models, int *num_save, int *sorttype );
+			 float *prob, float *otherprob, int *models, int *num_save, 
+			 int *sorttype );   
 
 //computes aic
 float aic(int n, int p, float sighat){
@@ -65,22 +66,24 @@ void arraysort(float *src, int *idx, float *dest, int num_elem, int max){
 
 //performs model search
 void lmsearch(float *X, int *rows, int *cols, float *Y, int *ycols, int *g, 
-	      float *aics, float *bics, float *logmargs, int *models, 
-	      int *num_save, int *sorttype ){
+	      float *aics, float *bics, float *logmargs, float *prob, 
+	      float *otherprob, int *models, int *num_save, int *sorttype ){
 
   int p = *cols, k = p - 1, M = 1 << k, n = *rows;
-  int id, remain, tmp, km, pm, mj;
-  int binid[k];  //binary id of current model
+  int id, km, pm, mj;
   int i, j;
   float *Xm; //pointer to model matrix of current model
   size_t fbytes = sizeof(float), ibytes = sizeof(int), dbytes = sizeof(double);
   float *coeffs, *resids, *effects; //pointers to arrays, needed for gpuLmfit
   int *rank, *pivot; 
   double *qrAux;
-  double tol = 0.0001; //tolerance of the fit, float only supported by gputools
+  double tol = 0.0001; //tolerance of the fit, gputools only supports float
   float score, *worstscore; 
   float sighat, ynorm=0, ssr, ymn=0, Rsq;
   int *worstid;
+  int bit;
+  float a, b, lml, maxlml;
+  float totalprob;
   
 
   rank = (int *) malloc(ibytes);
@@ -115,43 +118,37 @@ void lmsearch(float *X, int *rows, int *cols, float *Y, int *ycols, int *g,
 
   //for each model
   for(id = 0; id < M; id++){
-    //find the binary id and num of covariates in current model
+
+    mj = 0; //keeps track of column numbers of current model matrix
     km = 0; 
-    remain = id;
-    for(i = 0; i < k; i++){
-      tmp = 1 << (k - i - 1);
-      if( remain >= tmp ){
-	remain -= tmp;
-	binid[i] = 1;
+
+    //calculate km: #variables in Xm
+    for(j = 0; j < k; j++){
+      bit = (id & ( 1 << j ) ) >> j;
+      if(bit == 1){
 	km += 1;
-      }
-      else{
-	binid[i] = 0;
       }
     }
     pm = km + 1;
-    
+
+
     //allocate memory for model matrix of current model
     Xm = (float *) malloc( n * pm * fbytes );
-
     if(Xm == NULL){
       Rprintf("\nMemory for Xm failed to allocate\n");
-    exit(1);
-  }
-
-    mj = 0; //keeps track of column numbers of current model matrix
-
+      exit(1);
+    }
+    
     //copy the relevant columns of the full model matrix into the current model's
     //model matrix. Note: R stores matrices/arrays in column major format.
     for(j = 0; j < p; j++){    
-      if(j == 0 || binid[j-1] == 1){
+      bit = (id & ( 1 << j ) ) >> j;
+      if(j == 0 || bit == 1){
 	memcpy(Xm + mj*n, X + j*n, fbytes*n);
-	//for(i = 0; i < n; i++){
-	//Xm[i + mj*n] = X[i + j*n];
-	//}
 	mj += 1;
       }
     }
+
 
     //allocate memory for arrays required for gpuLmfit
     coeffs = (float *) calloc(pm, fbytes);
@@ -200,48 +197,60 @@ void lmsearch(float *X, int *rows, int *cols, float *Y, int *ycols, int *g,
     sighat = ssr / (n-pm); 
     Rsq = 1 - ssr/ynorm;
 
-    //update best set of models information if applicable
-    if(*sorttype == 0){
-      //save info of all models
-      aics[id] = aic(n, pm, sighat);
-      bics[id] = bic(n, pm, sighat);
-      logmargs[id] = logmarglike(n, km, *g, Rsq);
-      models[id] = id+1;
-    }
-    else if(*sorttype == 1){
-      //save the best num_save models according to AIC
-      arraysort(aics, worstid, worstscore, *num_save, 1);
-      score = aic(n, pm, sighat);
-      if(score < *worstscore){
-	models[*worstid] = id+1;
-	aics[*worstid] = score;
-	bics[*worstid] = bic(n, pm, sighat);
-	logmargs[*worstid] = logmarglike(n, km, *g, Rsq);
+    a = aic(n, pm, sighat);
+    b = bic(n, pm, sighat);
+    lml = logmarglike(n, km, *g, Rsq);
+
+    if(lml > maxlml){
+      if(id == 1){
+        maxlml = lml;
+        totalprob = 1;
       }
-    }
-    else if(*sorttype == 2){
-      //save the best num_save models according to BIC
-      arraysort(bics, worstid, worstscore, *num_save, 1);
-      score = bic(n, pm, sighat);
-      if(score < *worstscore){
-	models[*worstid] = id+1;
-	aics[*worstid] = aic(n, pm, sighat);
-	bics[*worstid] = score;
-	logmargs[*worstid] = logmarglike(n, km, *g, Rsq);
+      else{
+        totalprob = totalprob * exp(maxlml - lml) + 1;
+        maxlml = lml;
       }
     }
     else{
-      //save the best num_save models according to Marginal Likelihood
-      arraysort(logmargs, worstid, worstscore, *num_save, 0);
-      score = logmarglike(n, km, *g, Rsq);
-      if(score > *worstscore){
-	models[*worstid] = id+1;
-	aics[*worstid] = aic(n, pm, sighat);
-	bics[*worstid] = bic(n, pm, sighat);
-	logmargs[*worstid] = score;
-      }
+      totalprob += exp(lml - maxlml);
     }
 
+
+    //update best set of models information if applicable
+    if(*sorttype == 0){
+      //save info of all models
+      aics[id] = a;
+      bics[id] = b;
+      logmargs[id] = lml;
+      models[id] = id+1;
+    }
+    else{ 
+
+      if(*sorttype == 1){
+	//save the best num_save models according to AIC
+	arraysort(aics, worstid, worstscore, *num_save, 1);
+	score = a;
+      }
+      else if(*sorttype == 2){
+	//save the best num_save models according to BIC
+	arraysort(bics, worstid, worstscore, *num_save, 1);
+	score = b;
+      }
+      else{
+	//save the best num_save models according to Marginal Likelihood
+	arraysort(logmargs, worstid, worstscore, *num_save, 0);
+	score = lml;
+      }
+
+      if(score < *worstscore){
+	models[*worstid] = id+1;
+	aics[*worstid] = a;
+	bics[*worstid] = b;
+	logmargs[*worstid] = lml;
+      }
+
+    }
+    
     //free memory use for storing information on current model
     //note: only memory whose size depends on the particular model
     free(coeffs);
@@ -252,6 +261,14 @@ void lmsearch(float *X, int *rows, int *cols, float *Y, int *ycols, int *g,
     free(Xm);
     
   }
+
+  //calculate probabilities
+  for(i = 0; i < *num_save; i++){
+    prob[i] = exp(logmargs[i] - maxlml) / totalprob;
+    *otherprob += prob[i];
+  }
+  *otherprob = 1 - *otherprob;
+
 
   //free remaining memory
   free(rank);
