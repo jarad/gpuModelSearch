@@ -194,134 +194,363 @@ for(i in 41:45){
 }
 write.csv(fittime, "rfittime.csv", row.names=F)
 
+source("~/gpuModelSearch/Rwrapper/rlmsearch.r")
 fittime <- read.csv("rfittime.csv")
-ns <- c(100, 1000, 5000, 10000, 100000, 1000000)
+ns <- c(100, 1000, 5000, 10000, 100000, 250000, 500000, 1000000, 1250000, 1500000, 2000000)
+ks <- c(10, 11, 12, 13, 5)
+n <- ns[10]
+k <- ks[1]
+set.seed(446)
+##initial fit because the first time always takes longer than normal for some reason
+system.time(test <- gpuLm.fit(matrix(c(1,2,6,9),2,2),matrix(c(1,3),ncol=1)))
+
+for(i in 46:50){
+  X <- genX(n,k)
+  Y <- genY(n,k,X)
+  if(i==50){
+    time <- system.time(test <- gpurlmsearch(X,Y))
+    fittime[i,] <- c(n,k,time[1:3])
+  }
+  print(i)
+}
+write.csv(fittime, "rfittime.csv", row.names=F)
+
+source("~/gpuModelSearch/Rwrapper/rlmsearch.r")
+fittime <- read.csv("rfittime.csv")
+ns <- c(100, 1000, 5000, 10000, 100000, 250000, 500000, 1000000, 1250000, 1500000, 2000000)
+ks <- c(10, 11, 12, 13, 5)
+n <- ns[11]
+k <- ks[1]
+set.seed(448)
+##initial fit because the first time always takes longer than normal for some reason
+system.time(test <- gpuLm.fit(matrix(c(1,2,6,9),2,2),matrix(c(1,3),ncol=1)))
+
+for(i in 51:55){
+  X <- genX(n,k)
+  Y <- genY(n,k,X)
+  if(i==55){
+    time <- system.time(test <- gpurlmsearch(X,Y))
+    fittime[i,] <- c(n,k,time[1:3])
+  }
+  print(i)
+}
+write.csv(fittime, "rfittime.csv", row.names=F)
+
+
+###################################
+
+##end of all k=10
+
+###################################
+
+
+source("~/gpuModelSearch/Rwrapper/rlmsearch.r")
+set.seed(12147)
+fittime <- read.csv("rfittime.csv")
+ns <- c(100, 1000, 5000, 10000, 100000, 250000, 500000, 1000000, 1250000, 1500000, 2000000)
 ks <- c(10, 11, 12, 13, 5)
 n <- ns[1]
 k <- ks[5]
-set.seed(446)
 ##initial fit because the first time always takes longer than normal for some reason
-X <- genX(n,k)
-Y <- genY(n,k,X)
-system.time(test <- gpuLm.fit(X,Y))
-for(i in 91:100){
-  if(i != 1){ ##already generated above
-    X <- genX(n,k)
-    Y <- genY(n,k,X)
+system.time(test <- gpuLm.fit(matrix(c(1,2,6,9),2,2),matrix(c(1,3),ncol=1)))
+
+for(i in 56:60){
+  X <- genX(n,k)
+  Y <- genY(n,k,X)
+  if(i == 60){
+    time <- system.time(test <- gpurlmsearch(X,Y))
+    fittime[i,] <- c(n,k,time[1:3])
   }
-  time <- system.time(test <- gpurlmsearch(X,Y))
-  fittime[i,] <- c(n,k,time[1:3])
   print(i)
 }
-
 write.csv(fittime, "rfittime.csv", row.names=F)
 
+source("~/gpuModelSearch/Rwrapper/rlmsearch.r")
 fittime <- read.csv("rfittime.csv")
-ns <- c(100, 1000, 5000, 10000, 100000, 1000000)
+ns <- c(100, 1000, 5000, 10000, 100000, 250000, 500000, 1000000, 1250000, 1500000, 2000000)
 ks <- c(10, 11, 12, 13, 5)
+set.seed(3107)
+k <- ks[5]
 n <- ns[2]
-k <- ks[5]
-set.seed(448)
 ##initial fit because the first time always takes longer than normal for some reason
-X <- genX(n,k)
-Y <- genY(n,k,X)
-system.time(test <- gpuLm.fit(X,Y))
-for(i in 101:110){
-  if(i != 1){ ##already generated above
-    X <- genX(n,k)
-    Y <- genY(n,k,X)
+system.time(test <- gpuLm.fit(matrix(c(1,2,6,9),2,2),matrix(c(1,3),ncol=1)))
+
+for(i in 61:65){
+  X <- genX(n,k)
+  Y <- genY(n,k,X)
+  if(i == 65){
+    time <- system.time(test <- gpurlmsearch(X,Y))
+    fittime[i,] <- c(n,k,time[1:3])
   }
-  time <- system.time(test <- gpurlmsearch(X,Y))
-  fittime[i,] <- c(n,k,time[1:3])
   print(i)
 }
-
 write.csv(fittime, "rfittime.csv", row.names=F)
 
+
+source("~/gpuModelSearch/Rwrapper/rlmsearch.r")
 fittime <- read.csv("rfittime.csv")
-ns <- c(100, 1000, 5000, 10000, 100000, 1000000)
+ns <- c(100, 1000, 5000, 10000, 100000, 250000, 500000, 1000000, 1250000, 1500000, 2000000)
 ks <- c(10, 11, 12, 13, 5)
+set.seed(333)
+k <- ks[5]
 n <- ns[3]
-k <- ks[5]
-set.seed(449)
 ##initial fit because the first time always takes longer than normal for some reason
-X <- genX(n,k)
-Y <- genY(n,k,X)
-system.time(test <- gpuLm.fit(X,Y))
-for(i in 111:120){
-  if(i != 1){ ##already generated above
-    X <- genX(n,k)
-    Y <- genY(n,k,X)
+system.time(test <- gpuLm.fit(matrix(c(1,2,6,9),2,2),matrix(c(1,3),ncol=1)))
+
+for(i in 66:70){
+  X <- genX(n,k)
+  Y <- genY(n,k,X)
+  if(i==70){
+    time <- system.time(test <- gpurlmsearch(X,Y))
+    fittime[i,] <- c(n,k,time[1:3])
   }
-  time <- system.time(test <- gpurlmsearch(X,Y))
-  fittime[i,] <- c(n,k,time[1:3])
   print(i)
 }
-
 write.csv(fittime, "rfittime.csv", row.names=F)
 
+source("~/gpuModelSearch/Rwrapper/rlmsearch.r")
 fittime <- read.csv("rfittime.csv")
-ns <- c(100, 1000, 5000, 10000, 100000, 1000000)
+ns <- c(100, 1000, 5000, 10000, 100000, 250000, 500000, 1000000, 1250000, 1500000, 2000000)
 ks <- c(10, 11, 12, 13, 5)
+set.seed(3457)
+k <- ks[5]
 n <- ns[4]
-k <- ks[5]
-set.seed(450)
 ##initial fit because the first time always takes longer than normal for some reason
-X <- genX(n,k)
-Y <- genY(n,k,X)
-system.time(test <- gpuLm.fit(X,Y))
-for(i in 121:130){
-  if(i != 1){ ##already generated above
-    X <- genX(n,k)
-    Y <- genY(n,k,X)
+system.time(test <- gpuLm.fit(matrix(c(1,2,6,9),2,2),matrix(c(1,3),ncol=1)))
+
+for(i in 71:75){
+  X <- genX(n,k)
+  Y <- genY(n,k,X)
+  if(i==75){
+    time <- system.time(test <- gpurlmsearch(X,Y))
+    fittime[i,] <- c(n,k,time[1:3])
   }
-  time <- system.time(test <- gpurlmsearch(X,Y))
-  fittime[i,] <- c(n,k,time[1:3])
   print(i)
 }
-
 write.csv(fittime, "rfittime.csv", row.names=F)
 
+source("~/gpuModelSearch/Rwrapper/rlmsearch.r")
 fittime <- read.csv("rfittime.csv")
-ns <- c(100, 1000, 5000, 10000, 100000, 1000000)
+ns <- c(100, 1000, 5000, 10000, 100000, 250000, 500000, 1000000, 1250000, 1500000, 2000000)
 ks <- c(10, 11, 12, 13, 5)
+set.seed(3517)
+k <- ks[5]
 n <- ns[5]
-k <- ks[5]
-set.seed(451)
 ##initial fit because the first time always takes longer than normal for some reason
-X <- genX(n,k)
-Y <- genY(n,k,X)
-system.time(test <- gpuLm.fit(X,Y))
-for(i in 131:140){
-  if(i != 1){ ##already generated above
-    X <- genX(n,k)
-    Y <- genY(n,k,X)
+system.time(test <- gpuLm.fit(matrix(c(1,2,6,9),2,2),matrix(c(1,3),ncol=1)))
+
+for(i in 76:80){
+  X <- genX(n,k)
+  Y <- genY(n,k,X)
+  if(i==80){
+    time <- system.time(test <- gpurlmsearch(X,Y))
+    fittime[i,] <- c(n,k,time[1:3])
   }
-  time <- system.time(test <- gpurlmsearch(X,Y))
-  fittime[i,] <- c(n,k,time[1:3])
   print(i)
 }
-
 write.csv(fittime, "rfittime.csv", row.names=F)
 
+source("~/gpuModelSearch/Rwrapper/rlmsearch.r")
 fittime <- read.csv("rfittime.csv")
-ns <- c(100, 1000, 5000, 10000, 100000, 1000000)
+ns <- c(100, 1000, 5000, 10000, 100000, 250000, 500000, 1000000, 1250000, 1500000, 2000000)
 ks <- c(10, 11, 12, 13, 5)
+set.seed(4247)
 n <- ns[6]
 k <- ks[5]
-set.seed(453)
 ##initial fit because the first time always takes longer than normal for some reason
-X <- genX(n,k)
-Y <- genY(n,k,X)
-system.time(test <- gpuLm.fit(X,Y))
-for(i in 141:150){
-  if(i != 1){ ##already generated above
-    X <- genX(n,k)
-    Y <- genY(n,k,X)
+system.time(test <- gpuLm.fit(matrix(c(1,2,6,9),2,2),matrix(c(1,3),ncol=1)))
+
+for(i in 81:85){
+  X <- genX(n,k)
+  Y <- genY(n,k,X)
+  if(i==85){
+    time <- system.time(test <- gpurlmsearch(X,Y))
+    fittime[i,] <- c(n,k,time[1:3])
   }
-  time <- system.time(test <- gpurlmsearch(X,Y))
-  fittime[i,] <- c(n,k,time[1:3])
   print(i)
 }
+write.csv(fittime, "rfittime.csv", row.names=F)
 
+source("~/gpuModelSearch/Rwrapper/rlmsearch.r")
+fittime <- read.csv("rfittime.csv")
+ns <- c(100, 1000, 5000, 10000, 100000, 250000, 500000, 1000000, 1250000, 1500000, 2000000)
+ks <- c(10, 11, 12, 13, 5)
+n <- ns[7]
+k <- ks[5]
+set.seed(5227)
+##initial fit because the first time always takes longer than normal for some reason
+system.time(test <- gpuLm.fit(matrix(c(1,2,6,9),2,2),matrix(c(1,3),ncol=1)))
+
+for(i in 86:90){
+  X <- genX(n,k)
+  Y <- genY(n,k,X)
+  if(i==90){
+    time <- system.time(test <- gpurlmsearch(X,Y))
+    fittime[i,] <- c(n,k,time[1:3])
+  }
+  print(i)
+}
+write.csv(fittime, "rfittime.csv", row.names=F)
+
+
+source("~/gpuModelSearch/Rwrapper/rlmsearch.r")
+fittime <- read.csv("rfittime.csv")
+ns <- c(100, 1000, 5000, 10000, 100000, 250000, 500000, 1000000, 1250000, 1500000, 2000000)
+ks <- c(10, 11, 12, 13, 5)
+n <- ns[8]
+k <- ks[5]
+set.seed(3587)
+##initial fit because the first time always takes longer than normal for some reason
+system.time(test <- gpuLm.fit(matrix(c(1,2,6,9),2,2),matrix(c(1,3),ncol=1)))
+
+for(i in 91:95){
+  X <- genX(n,k)
+  Y <- genY(n,k,X)  
+  if(i==91){
+    time <- system.time(test <- gpurlmsearch(X,Y))
+    fittime[i,] <- c(n,k,time[1:3])
+  }
+  print(i)
+}
+write.csv(fittime, "rfittime.csv", row.names=F)
+
+source("~/gpuModelSearch/Rwrapper/rlmsearch.r")
+fittime <- read.csv("rfittime.csv")
+ns <- c(100, 1000, 5000, 10000, 100000, 250000, 500000, 1000000, 1250000, 1500000, 2000000)
+ks <- c(10, 11, 12, 13, 5)
+n <- ns[9]
+k <- ks[5]
+set.seed(4107)
+##initial fit because the first time always takes longer than normal for some reason
+system.time(test <- gpuLm.fit(matrix(c(1,2,6,9),2,2),matrix(c(1,3),ncol=1)))
+
+for(i in 96:100){
+  X <- genX(n,k)
+  Y <- genY(n,k,X)
+  if(i==96){
+    time <- system.time(test <- gpurlmsearch(X,Y))
+    fittime[i,] <- c(n,k,time[1:3])
+  }
+  print(i)
+}
+write.csv(fittime, "rfittime.csv", row.names=F)
+
+source("~/gpuModelSearch/Rwrapper/rlmsearch.r")
+fittime <- read.csv("rfittime.csv")
+ns <- c(100, 1000, 5000, 10000, 100000, 250000, 500000, 1000000, 1250000, 1500000, 2000000)
+ks <- c(10, 11, 12, 13, 5)
+n <- ns[10]
+k <- ks[5]
+set.seed(4467)
+##initial fit because the first time always takes longer than normal for some reason
+system.time(test <- gpuLm.fit(matrix(c(1,2,6,9),2,2),matrix(c(1,3),ncol=1)))
+
+for(i in 101:105){
+  X <- genX(n,k)
+  Y <- genY(n,k,X)
+  if(i==101){
+    time <- system.time(test <- gpurlmsearch(X,Y))
+    fittime[i,] <- c(n,k,time[1:3])
+  }
+  print(i)
+}
+write.csv(fittime, "rfittime.csv", row.names=F)
+
+source("~/gpuModelSearch/Rwrapper/rlmsearch.r")
+fittime <- read.csv("rfittime.csv")
+ns <- c(100, 1000, 5000, 10000, 100000, 250000, 500000, 1000000, 1250000, 1500000, 2000000)
+ks <- c(10, 11, 12, 13, 5)
+n <- ns[11]
+k <- ks[5]
+set.seed(4487)
+##initial fit because the first time always takes longer than normal for some reason
+system.time(test <- gpuLm.fit(matrix(c(1,2,6,9),2,2),matrix(c(1,3),ncol=1)))
+
+for(i in 106:110){
+  X <- genX(n,k)
+  Y <- genY(n,k,X)
+  if(i==51){
+    time <- system.time(test <- gpurlmsearch(X,Y))
+    fittime[i,] <- c(n,k,time[1:3])
+  }
+  print(i)
+}
+write.csv(fittime, "rfittime.csv", row.names=F)
+
+
+
+
+
+###################################
+
+##end of all k = 5
+
+###################################
+
+
+source("~/gpuModelSearch/Rwrapper/rlmsearch.r")
+fittime <- read.csv("rfittime.csv")
+ns <- c(100, 1000, 5000, 10000, 100000, 250000, 500000, 1000000, 1250000, 1500000, 2000000)
+ks <- c(10, 11, 12, 13, 5)
+n <- ns[1]
+k <- ks[2]
+set.seed(448711)
+##initial fit because the first time always takes longer than normal for some reason
+system.time(test <- gpuLm.fit(matrix(c(1,2,6,9),2,2),matrix(c(1,3),ncol=1)))
+
+for(i in 111:115){
+  X <- genX(n,k)
+  Y <- genY(n,k,X)
+  if(i==111){
+    time <- system.time(test <- gpurlmsearch(X,Y))
+    fittime[i,] <- c(n,k,time[1:3])
+  }
+  print(i)
+}
+write.csv(fittime, "rfittime.csv", row.names=F)
+
+
+
+source("~/gpuModelSearch/Rwrapper/rlmsearch.r")
+fittime <- read.csv("rfittime.csv")
+ns <- c(100, 1000, 5000, 10000, 100000, 250000, 500000, 1000000, 1250000, 1500000, 2000000)
+ks <- c(10, 11, 12, 13, 5)
+n <- ns[1]
+k <- ks[3]
+set.seed(448712)
+##initial fit because the first time always takes longer than normal for some reason
+system.time(test <- gpuLm.fit(matrix(c(1,2,6,9),2,2),matrix(c(1,3),ncol=1)))
+
+for(i in 116:120){
+  X <- genX(n,k)
+  Y <- genY(n,k,X)
+  if(i==116){
+    time <- system.time(test <- gpurlmsearch(X,Y))
+    fittime[i,] <- c(n,k,time[1:3])
+  }
+  print(i)
+}
+write.csv(fittime, "rfittime.csv", row.names=F)
+
+
+
+source("~/gpuModelSearch/Rwrapper/rlmsearch.r")
+fittime <- read.csv("rfittime.csv")
+ns <- c(100, 1000, 5000, 10000, 100000, 250000, 500000, 1000000, 1250000, 1500000, 2000000)
+ks <- c(10, 11, 12, 13, 5)
+n <- ns[1]
+k <- ks[4]
+set.seed(448713)
+##initial fit because the first time always takes longer than normal for some reason
+system.time(test <- gpuLm.fit(matrix(c(1,2,6,9),2,2),matrix(c(1,3),ncol=1)))
+
+for(i in 121:125){
+  X <- genX(n,k)
+  Y <- genY(n,k,X)
+  if(i==121){
+    time <- system.time(test <- gpurlmsearch(X,Y))
+    fittime[i,] <- c(n,k,time[1:3])
+  }
+  print(i)
+}
 write.csv(fittime, "rfittime.csv", row.names=F)
