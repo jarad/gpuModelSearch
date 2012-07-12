@@ -33,6 +33,7 @@ for(i in 1:M){
 }
 
 ##You may need to increase M to reproduce the error, it occurs for me at i=13173
+##and at i=11963 for another use. 
 ##Increasing n or k seems to decrease the number of iterations before the error.
 
 ##now from my previous work, it appeared that as i increased, the amount of time
@@ -40,7 +41,7 @@ for(i in 1:M){
 ##how long it takes to fit all possible sub-models, but linear regression picks it
 ##up in this case:
 
-o <- lm(data=fittime[-1,], time~i)
+o <- lm(time~i, fittime[-1,])
 summary(o)
 
 ##I remove the first observation because the first call to the gpu from a given process

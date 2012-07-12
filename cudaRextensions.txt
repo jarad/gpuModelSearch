@@ -24,17 +24,20 @@ using nvcc. Here are the relevant commands:
 
 1) nvcc -g -G -Xcompiler "-I/apps/lib64/R/include -fpic" -c foo.cu foo.o
 
-This compiles the function into an object file. -g and -G are for debugging purposes.
--Xcompiler tells nvcc that options will be passed on to the compiler. These options are
-in quotes. -I/apps/lib64/R/include adds the directory to the library path - this is the 
-directory of R.h. -fpic creates code suitable for use in a shared library. -c tell nvcc
-that we're just compiling and not linking. foo.cu is the code to be compiled, foo.o is
-the name of the output file.
+This compiles the function into an object file. 
+  -g and -G are for debugging purposes.
+  -Xcompiler tells nvcc that options (in quotes) will be passed on to the compiler.  
+    -I/apps/lib64/R/include adds the (R.h) directory to the library path 
+    -fpic creates code suitable for use in a shared library. 
+  -c tell nvcc that we're just compiling and not linking. 
+  foo.cu is the code to be compiled, 
+  foo.o is the name of the output file.
 
 2) nvcc -shared foo.o -o foo.so
 
-This link the object file into a shared library. -shared tells nvcc that it's shared.
--o foo.so tells nvcc to output it into foo.so
+This links the object file into a shared library. 
+  -shared tells nvcc that it's shared.
+  -o foo.so tells nvcc to output it into foo.so
 
 Now open up R. To access the function, first we need to load the shared library:
 
