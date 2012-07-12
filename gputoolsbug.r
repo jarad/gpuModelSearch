@@ -40,7 +40,7 @@ for(i in 1:M){
 ##how long it takes to fit all possible sub-models, but linear regression picks it
 ##up in this case:
 
-o <- lm(data=fittime[-1,], time~i)
+o <- lm(time~i, time~i)
 summary(o)
 
 ##I remove the first observation because the first call to the gpu from a given process
