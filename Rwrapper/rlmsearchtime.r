@@ -406,7 +406,7 @@ system.time(test <- gpuLm.fit(matrix(c(1,2,6,9),2,2),matrix(c(1,3),ncol=1)))
 for(i in 91:95){
   X <- genX(n,k)
   Y <- genY(n,k,X)  
-  if(i==91){
+  if(i==95){
     time <- system.time(test <- gpurlmsearch(X,Y))
     fittime[i,] <- c(n,k,time[1:3])
   }
@@ -427,7 +427,7 @@ system.time(test <- gpuLm.fit(matrix(c(1,2,6,9),2,2),matrix(c(1,3),ncol=1)))
 for(i in 96:100){
   X <- genX(n,k)
   Y <- genY(n,k,X)
-  if(i==96){
+  if(i==100){
     time <- system.time(test <- gpurlmsearch(X,Y))
     fittime[i,] <- c(n,k,time[1:3])
   }
@@ -448,7 +448,7 @@ system.time(test <- gpuLm.fit(matrix(c(1,2,6,9),2,2),matrix(c(1,3),ncol=1)))
 for(i in 101:105){
   X <- genX(n,k)
   Y <- genY(n,k,X)
-  if(i==101){
+  if(i==105){
     time <- system.time(test <- gpurlmsearch(X,Y))
     fittime[i,] <- c(n,k,time[1:3])
   }
@@ -469,16 +469,13 @@ system.time(test <- gpuLm.fit(matrix(c(1,2,6,9),2,2),matrix(c(1,3),ncol=1)))
 for(i in 106:110){
   X <- genX(n,k)
   Y <- genY(n,k,X)
-  if(i==51){
+  if(i==110){
     time <- system.time(test <- gpurlmsearch(X,Y))
     fittime[i,] <- c(n,k,time[1:3])
   }
   print(i)
 }
 write.csv(fittime, "rfittime.csv", row.names=F)
-
-
-
 
 
 ###################################
@@ -497,11 +494,10 @@ k <- ks[2]
 set.seed(448711)
 ##initial fit because the first time always takes longer than normal for some reason
 system.time(test <- gpuLm.fit(matrix(c(1,2,6,9),2,2),matrix(c(1,3),ncol=1)))
-
 for(i in 111:115){
   X <- genX(n,k)
   Y <- genY(n,k,X)
-  if(i==111){
+  if(i==115){
     time <- system.time(test <- gpurlmsearch(X,Y))
     fittime[i,] <- c(n,k,time[1:3])
   }
@@ -520,11 +516,10 @@ k <- ks[3]
 set.seed(448712)
 ##initial fit because the first time always takes longer than normal for some reason
 system.time(test <- gpuLm.fit(matrix(c(1,2,6,9),2,2),matrix(c(1,3),ncol=1)))
-
 for(i in 116:120){
   X <- genX(n,k)
   Y <- genY(n,k,X)
-  if(i==116){
+  if(i==120){
     time <- system.time(test <- gpurlmsearch(X,Y))
     fittime[i,] <- c(n,k,time[1:3])
   }
@@ -543,11 +538,10 @@ k <- ks[4]
 set.seed(448713)
 ##initial fit because the first time always takes longer than normal for some reason
 system.time(test <- gpuLm.fit(matrix(c(1,2,6,9),2,2),matrix(c(1,3),ncol=1)))
-
 for(i in 121:125){
   X <- genX(n,k)
   Y <- genY(n,k,X)
-  if(i==121){
+  if(i==125){
     time <- system.time(test <- gpurlmsearch(X,Y))
     fittime[i,] <- c(n,k,time[1:3])
   }
