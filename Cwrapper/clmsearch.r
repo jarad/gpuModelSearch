@@ -1,3 +1,5 @@
+library(gputools)
+
 gpuclmsearch <- function(X, Y, g=NULL, sort="AIC", nsave=1000){
 
   if(is.null(g))
