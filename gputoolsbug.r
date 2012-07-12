@@ -30,6 +30,7 @@ for(i in 1:M){
 }
 
 ##You may need to increase M to reproduce the error, it occurs for me at i=13173
-##and at i=11963 for another use. 
+##and at i=11963 for another use (with a segmentation fault when exiting R). 
 ##Increasing n or k seems to decrease the number of iterations before the error.
+
 
