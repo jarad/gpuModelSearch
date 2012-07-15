@@ -220,7 +220,7 @@ system.time(test <- gpuLm.fit(matrix(c(1,2,6,9),2,2),matrix(c(1,3),ncol=1)))
 for(i in 51:55){
   X <- genX(n,k)
   Y <- genY(n,k,X)
-  if(i==52){
+  if(i==55){
     time <- system.time(test <- gpuclmsearch(X,Y))
     fittime[i,] <- c(n,k,time[1:3])
   }
@@ -248,7 +248,7 @@ system.time(test <- gpuLm.fit(matrix(c(1,2,6,9),2,2),matrix(c(1,3),ncol=1)))
 for(i in 56:60){
   X <- genX(n,k)
   Y <- genY(n,k,X)
-  if(i == 56){
+  if(i == 60){
     time <- system.time(test <- gpuclmsearch(X,Y))
     fittime[i,] <- c(n,k,time[1:3])
   }
@@ -268,7 +268,7 @@ system.time(test <- gpuLm.fit(matrix(c(1,2,6,9),2,2),matrix(c(1,3),ncol=1)))
 for(i in 61:65){
   X <- genX(n,k)
   Y <- genY(n,k,X)
-  if(i == 61){
+  if(i == 65){
     time <- system.time(test <- gpuclmsearch(X,Y))
     fittime[i,] <- c(n,k,time[1:3])
   }
@@ -289,7 +289,7 @@ system.time(test <- gpuLm.fit(matrix(c(1,2,6,9),2,2),matrix(c(1,3),ncol=1)))
 for(i in 66:70){
   X <- genX(n,k)
   Y <- genY(n,k,X)
-  if(i==65){
+  if(i==70){
     time <- system.time(test <- gpuclmsearch(X,Y))
     fittime[i,] <- c(n,k,time[1:3])
   }
@@ -309,13 +309,14 @@ system.time(test <- gpuLm.fit(matrix(c(1,2,6,9),2,2),matrix(c(1,3),ncol=1)))
 for(i in 71:75){
   X <- genX(n,k)
   Y <- genY(n,k,X)
-  if(i==71){
+  if(i==75){
     time <- system.time(test <- gpuclmsearch(X,Y))
     fittime[i,] <- c(n,k,time[1:3])
   }
   print(i)
 }
 write.csv(fittime, "cfittime.csv", row.names=F)
+
 
 source("~/gpuModelSearch/Cwrapper/clmsearch.r")
 fittime <- read.csv("cfittime.csv")
@@ -329,7 +330,7 @@ system.time(test <- gpuLm.fit(matrix(c(1,2,6,9),2,2),matrix(c(1,3),ncol=1)))
 for(i in 76:80){
   X <- genX(n,k)
   Y <- genY(n,k,X)
-  if(i==76){
+  if(i==80){
     time <- system.time(test <- gpuclmsearch(X,Y))
     fittime[i,] <- c(n,k,time[1:3])
   }
@@ -349,7 +350,7 @@ system.time(test <- gpuLm.fit(matrix(c(1,2,6,9),2,2),matrix(c(1,3),ncol=1)))
 for(i in 81:85){
   X <- genX(n,k)
   Y <- genY(n,k,X)
-  if(i==81){
+  if(i==85){
     time <- system.time(test <- gpuclmsearch(X,Y))
     fittime[i,] <- c(n,k,time[1:3])
   }
@@ -369,7 +370,7 @@ system.time(test <- gpuLm.fit(matrix(c(1,2,6,9),2,2),matrix(c(1,3),ncol=1)))
 for(i in 86:90){
   X <- genX(n,k)
   Y <- genY(n,k,X)
-  if(i==86){
+  if(i==90){
     time <- system.time(test <- gpuclmsearch(X,Y))
     fittime[i,] <- c(n,k,time[1:3])
   }
@@ -390,7 +391,7 @@ system.time(test <- gpuLm.fit(matrix(c(1,2,6,9),2,2),matrix(c(1,3),ncol=1)))
 for(i in 91:95){
   X <- genX(n,k)
   Y <- genY(n,k,X)  
-  if(i==91){
+  if(i==95){
     time <- system.time(test <- gpuclmsearch(X,Y))
     fittime[i,] <- c(n,k,time[1:3])
   }
@@ -410,7 +411,7 @@ system.time(test <- gpuLm.fit(matrix(c(1,2,6,9),2,2),matrix(c(1,3),ncol=1)))
 for(i in 96:100){
   X <- genX(n,k)
   Y <- genY(n,k,X)
-  if(i==96 ){
+  if(i==100 ){
     time <- system.time(test <- gpuclmsearch(X,Y))
     fittime[i,] <- c(n,k,time[1:3])
   }
@@ -430,7 +431,7 @@ system.time(test <- gpuLm.fit(matrix(c(1,2,6,9),2,2),matrix(c(1,3),ncol=1)))
 for(i in 101:105){
   X <- genX(n,k)
   Y <- genY(n,k,X)
-  if(i==101){
+  if(i==105){
     time <- system.time(test <- gpuclmsearch(X,Y))
     fittime[i,] <- c(n,k,time[1:3])
   }
@@ -450,7 +451,7 @@ system.time(test <- gpuLm.fit(matrix(c(1,2,6,9),2,2),matrix(c(1,3),ncol=1)))
 for(i in 106:110){
   X <- genX(n,k)
   Y <- genY(n,k,X)
-  if(i==106){
+  if(i==110){
     time <- system.time(test <- gpuclmsearch(X,Y))
     fittime[i,] <- c(n,k,time[1:3])
   }
@@ -478,7 +479,7 @@ system.time(test <- gpuLm.fit(matrix(c(1,2,6,9),2,2),matrix(c(1,3),ncol=1)))
 for(i in 111:115){
   X <- genX(n,k)
   Y <- genY(n,k,X)
-  if(i==111){
+  if(i==115){
     time <- system.time(test <- gpuclmsearch(X,Y))
     fittime[i,] <- c(n,k,time[1:3])
   }
@@ -500,7 +501,7 @@ system.time(test <- gpuLm.fit(matrix(c(1,2,6,9),2,2),matrix(c(1,3),ncol=1)))
 for(i in 116:120){
   X <- genX(n,k)
   Y <- genY(n,k,X)
-  if(i==116){
+  if(i==120){
     time <- system.time(test <- gpuclmsearch(X,Y))
     fittime[i,] <- c(n,k,time[1:3])
   }
@@ -522,7 +523,7 @@ system.time(test <- gpuLm.fit(matrix(c(1,2,6,9),2,2),matrix(c(1,3),ncol=1)))
 for(i in 121:125){
   X <- genX(n,k)
   Y <- genY(n,k,X)
-  if(i==121){
+  if(i==125){
     time <- system.time(test <- gpuclmsearch(X,Y))
     fittime[i,] <- c(n,k,time[1:3])
   }
