@@ -64,6 +64,7 @@ void arraysort(float *src, int *idx, float *dest, int num_elem, int max){
   *idx = id;
 }
 
+
 //performs model search
 void lmsearch(float *X, int *rows, int *cols, float *Y, int *ycols, int *g, 
 	      float *aics, float *bics, float *logmargs, float *prob, 
@@ -72,7 +73,6 @@ void lmsearch(float *X, int *rows, int *cols, float *Y, int *ycols, int *g,
   int p = *cols, k = p - 1, M = 1 << k, n = *rows;
   int id, km, pm, mj;
   int i, j;
-  float *Xm; //pointer to model matrix of current model
   size_t fbytes = sizeof(float), ibytes = sizeof(int), dbytes = sizeof(double);
   float *coeffs, *resids, *effects; //pointers to arrays, needed for gpuLmfit
   int *rank, *pivot; 
@@ -84,8 +84,20 @@ void lmsearch(float *X, int *rows, int *cols, float *Y, int *ycols, int *g,
   int bit;
   float a, b, lml, maxlml;
   float totalprob;
-  
+  float *dX, *dXm, *Xm = malloc(n*p*fbytes);
+  const unsigned blockExp = 7; // Gives blockSize = 2^7 = 128.
+  int stride = alignBlock(n, blockExp);
 
+  cublasInit();
+  cublasAlloc(stride * p, fbytes, (void **)&dX);
+  cublasAlloc(stride * p, fbytes, (void **)&dXm);
+
+  
+  // This is overkill:  just need to zero the padding.
+  // (copy full matrix X to device)
+  cudaMemset2D(dX, p * fbytes, 0.f, p * fbytes, stride); 
+  cublasSetMatrix(n, p, fbytes, X, n, dX, stride);
+    
   rank = (int *) malloc(ibytes);
   worstid = (int *) malloc(ibytes);
   worstscore = (float *) malloc(fbytes);
@@ -119,38 +131,23 @@ void lmsearch(float *X, int *rows, int *cols, float *Y, int *ycols, int *g,
   //for each model
   for(id = 0; id < M; id++){
 
-    mj = 0; //keeps track of column numbers of current model matrix
-    km = 0; 
-
-    //calculate km: #variables in Xm
-    for(j = 0; j < k; j++){
-      bit = (id & ( 1 << j ) ) >> j;
-      if(bit == 1){
-	km += 1;
-      }
-    }
-    pm = km + 1;
-
-
-    //allocate memory for model matrix of current model
-    Xm = (float *) malloc( n * pm * fbytes );
-    if(Xm == NULL){
-      Rprintf("\nMemory for Xm failed to allocate\n");
-      exit(1);
-    }
-    
     //copy the relevant columns of the full model matrix into the current model's
     //model matrix. Note: R stores matrices/arrays in column major format.
+    mj = 0; //keeps track of column numbers of current model matrix
+    pm = 0; //keeps track of number of variables in model matrix
     for(j = 0; j < p; j++){    
       bit = (id & ( 1 << j ) ) >> j;
       if(j == 0 || bit == 1){
-	memcpy(Xm + mj*n, X + j*n, fbytes*n);
+	cublasScopy(stride, dX + j*stride, 1, dXm + mj*stride, 1);
+	pm += 1;
 	mj += 1;
       }
     }
 
+    km = pm - 1;
 
-    //allocate memory for arrays required for gpuLmfit
+
+    //allocate memory for arrays required for getQR
     coeffs = (float *) calloc(pm, fbytes);
     resids = (float *) calloc(n, fbytes);
     effects = (float *) malloc(n* (*ycols) *fbytes);
@@ -173,12 +170,12 @@ void lmsearch(float *X, int *rows, int *cols, float *Y, int *ycols, int *g,
       exit(1);
     }
     
-    //required for gpuLmfit
+    //required for getQR
     memcpy(effects, Y, n* (*ycols) *fbytes);
 
     *rank = 1; //initialize
 
-    //required for gpuLmfit
+    //required for getQR
     pivot = (int *) malloc(pm*ibytes);
     if(pivot == NULL){
       Rprintf("\nMemory for pivot failed to allocate\n");
@@ -186,6 +183,22 @@ void lmsearch(float *X, int *rows, int *cols, float *Y, int *ycols, int *g,
     }
     for(i = 0; i < pm; i++)
       pivot[i] = i;
+
+
+
+
+    // On return we have dXm in pivoted, packed QR form.
+    //
+    getQRDecompBlocked(n, pm, tol, dXm, 1 << blockExp,
+		       stride, pivot, qrAux, rank);
+    cublasGetMatrix(n, pm, fbytes, dXm, stride, Xm, n);
+    
+    if(*rank > 0)
+      getCRE(dXm, n, pm, stride, *rank, qrAux, yCols, coeffs, resids, effects);
+    else // Residuals copied from Y.
+      memcpy(resids, Y, rows * yCols * fbytes);
+
+
 
     //fit the current model
     gpuLSFitF(Xm, n, pm, Y, *ycols, tol, coeffs, resids, effects, rank, pivot, qrAux);
@@ -258,7 +271,6 @@ void lmsearch(float *X, int *rows, int *cols, float *Y, int *ycols, int *g,
     free(effects);
     free(qrAux);
     free(pivot);
-    free(Xm);
     
   }
 
@@ -274,5 +286,11 @@ void lmsearch(float *X, int *rows, int *cols, float *Y, int *ycols, int *g,
   free(rank);
   free(worstid);
   free(worstscore);
+  free(Xm);
+  cublasFree(dX);
+  cublasFree(dXm);
+
+  cublasShutdown();
 
 }
+

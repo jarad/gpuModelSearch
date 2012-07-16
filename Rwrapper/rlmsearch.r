@@ -170,23 +170,6 @@ bic <- function(n, p, sighat){
   return(out)
 }
 
-##Calculates the marginal likelihood for a given model
-##Formula from Liang et al 2007, pg 6, assumes constant g
-##later it might be worth implementing with priors chosen for g
-##note: only calculates marginal likelihood up to a multiplicative constant
-##that is common to all models
-##note2: numerical issue: returns Inf far too easily
-marglik <- function(n, k, g, Rsq, Ynorm){
-  ##if we have the null model, we know Rsq = 0
-  if(k==0)
-    Rsq <- 0
-  out <- (1+g)/(1+ g*(1-Rsq) )
-  out <- out^((n-1)/2)
-  out <- out / (1+g)^(k/2)
-  ## out <- C * out  ##this is where the common multiplicative constant would come in
-  return(out)
-}
-
 ##Calculates the log marginal likelihood for a given model
 ##Formula from Liang et al 2007, pg 6, assumes constant g
 ##later it might be worth implementing with priors chosen for g
@@ -203,14 +186,6 @@ logmarglik <- function(n, k, g, Rsq, Ynorm){
   return(out)
 }
 
-##common multiplicative constant on all marginal likelihoods
-##note: not used since it's unnecessary and gamma() blows up for large n
-margC <- function(n, Ynorm){
-  Ynorm <- sqrt( Ynorm  )^(-n+1)
-  K <- gamma((n-1)/2) / pi^((n-1)/2) / sqrt(n)
-  out <- K*Ynorm
-  return(out)
-}
 
 ##generate a model matrix
 genX <- function(n, k){
