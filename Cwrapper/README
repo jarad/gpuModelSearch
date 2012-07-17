@@ -1,15 +1,8 @@
 The following commands compile the source into the shared library filed that R can call:
 (in lieu of a makefile)
 
-nvcc -g -G -I/apps/lib64/R/include -I/home/simpsonm/gpuModelSearch/gputools/src -Xcompiler "-Wall -Wextra -fpic" -c lmsearch.cu -o lmsearch.o
+nvcc -g -G -I/apps/lib64/R/include -I../gpuModelSearch/gputools/src -Xcompiler "-Wall -Wextra -fpic" -c lmsearch.cu -o lmsearch.o
 
 nvcc -shared -lcublas lmsearch.o cuseful.o lsfit.o qrdecomp.o -o lmsearch.so
 
-note that "simpsonm" above should be replaced by your own ISU username (assuming you're compiling from impact1).
 
-JBN: in trying to use the above (after changing to my username) to compile, 
-     I received the following errors:
-
-lmsearch.cu:7:21: error: cuseful.h: No such file or directory
-lmsearch.cu:8:19: error: lsfit.h: No such file or directory
-lmsearch.cu:9:22: error: qrdecomp.h: No such file or directory
