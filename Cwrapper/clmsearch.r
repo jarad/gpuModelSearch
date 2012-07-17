@@ -53,13 +53,18 @@ gpuclmsearch.fit <- function(X, Y, g, sorttype, nsave){
 
   binid <- modelid(z$id, p-1, nsave)
   
-  out <- data.frame(ID=z$id, BinaryID=modelidchar(binid, nsave), AIC=z$aic,
+  
+  out <- data.frame(ID=z$id,  BinaryID=modelidchar(binid, nsave),
+                    AIC=z$aic,
                     AICrank=rank(z$aic,ties.method="first"),
-                    BIC=z$bic, BICrank=rank(z$bic,ties.method="first"),
-                    LogMargLike=z$lml, LMLrank=rank(-z$lml,ties.method="first"),
+                    BIC=z$bic,
+                    BICrank=rank(z$bic,ties.method="first"),
+                    LogMargLike=z$lml,
+                    LMLrank=rank(-z$lml,ties.method="first"),
                     PostProb=z$probs,
-                    Variables=modelvars(binid, colnames(X)[-1], nsave) )
-
+                    Variables=modelvars(binid, colnames(X)[-1], nsave))
+    
+ 
   if(sorttype=="AIC"){
     out <- out[order(out$AICrank),]
   }
