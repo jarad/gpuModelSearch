@@ -35,8 +35,8 @@ gpuclmsearch.fit <- function(X, Y, g, sorttype, nsave){
   aics <- rep(1000000000000, nsave)
   bics <- aics
   lmls <- -aics
-  models <- integer(nsave)
-  probs <- single(nsave)
+  models    <- integer(nsave)
+  probs     <- single(nsave)
   otherprob <- single(1)
   mode(aics) <- "single"
   mode(bics) <- "single"
@@ -45,12 +45,10 @@ gpuclmsearch.fit <- function(X, Y, g, sorttype, nsave){
   z <- .C("lmsearch", X, n, p, Y, ycols, g, aic=aics, bic=bics, lml=lmls,
           probs=probs, otherprob=otherprob, id=models, nsave, sort)
 
-
-
-  attr(z$aic, "Csingle") <- NULL
-  attr(z$bin, "Csingle") <- NULL
-  attr(z$lml, "Csingle") <- NULL
-  attr(z$probs, "Csingle") <- NULL
+  attr(z$aic,       "Csingle") <- NULL
+  attr(z$bin,       "Csingle") <- NULL
+  attr(z$lml,       "Csingle") <- NULL
+  attr(z$probs,     "Csingle") <- NULL
   attr(z$otherprob, "Csingle") <- NULL
 
   binid <- modelid(z$id, p-1, nsave)
@@ -75,9 +73,8 @@ gpuclmsearch.fit <- function(X, Y, g, sorttype, nsave){
   out <- list(Models=out, OtherProb=z$otherprob)
   
   return(out)
-  
-  
 }
+
 
 modelidchar <- function(binid, nsave){
   out <- rep("a",nsave)
@@ -87,6 +84,7 @@ modelidchar <- function(binid, nsave){
   return(out)
 }
 
+
 modelvars <- function(binid, colnam, nsave){
   out <- rep("a", nsave)
   
@@ -95,6 +93,7 @@ modelvars <- function(binid, colnam, nsave){
   }
   return(out)
 }
+
 
 modelid <-  function(id, k, nsave){
   M <- 2^k
@@ -113,6 +112,7 @@ modelid <-  function(id, k, nsave){
   return(binid)
 }
 
+
 ##generate a model matrix
 genX <- function(n, k){
   X <- matrix(c(rep(1,n),rnorm(n*k)),ncol=k+1)
@@ -120,9 +120,11 @@ genX <- function(n, k){
   return(X)
 }
 
+
 ##generate a response vector
 genY <- function(n,k,X){
   betas <- t(t(c(rnorm(k+1))))
   Y <- X%*%betas
   return(Y)
 }
+
