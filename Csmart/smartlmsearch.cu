@@ -5,8 +5,7 @@
 #include <cublas.h>
 #include <R.h>
 #include "cuseful.h"
-#include "lsfit.h"
-#include "qrdecomp.h"
+
 
 //function prototype for the function to be called from R
 extern "C" void lmsearch(float *X, int *rows, int *cols, float *Y, int *ycols, 
@@ -39,7 +38,7 @@ float logmarglike(int n, int k, int g, float Rsq){
   }
 }
 
-//finds the worst largest or smallest in src and output the index and the element
+//finds the largest or smallest element in src and outputs the index and the element
 void arraysort(float *src, int *idx, float *dest, int num_elem, int max){
   float tmp = *src;
   int id = 0, i;
@@ -65,6 +64,354 @@ void arraysort(float *src, int *idx, float *dest, int num_elem, int max){
 }
 
 
+// Rounds "length" up to the next multiple of the block length.
+// from gputools
+int alignBlock(int length, unsigned blockExp) {
+  int blockSize = 1 << blockExp;
+  return (length + blockSize - 1) & (((unsigned) -1)  << blockExp);
+}
+
+
+//finds column norms of a matrix, from gputools
+__global__ void getColNorms(int rows, int cols, float * da, int lda, 
+	float * colNorms){
+
+	int colIndex = threadIdx.x + blockIdx.x * blockDim.x;
+	float 
+		sum = 0.f, term,
+		* col;
+
+	if(colIndex >= cols)
+		return;
+
+	col = da + colIndex * lda;
+
+	// debug printing
+	// printf("printing column %d\n", colIndex);
+	// for(int i = 0; i < rows; i++)
+	// printf("%f, ", col[i]);
+	// puts("");
+	// end debug printing
+
+	for(int i = 0; i < rows; i++) {
+		term = col[i];
+		term *= term;
+		sum += term;
+	}
+
+	// debug printing
+	// printf("norm %f\n", norm);
+	// end debug printing
+
+	colNorms[colIndex] = sum;
+}
+
+
+
+// use householder xfrms and column pivoting to get the R factor of the
+// QR decomp of matrix da:  Q*A*P=R, equiv A*P = Q^t * R
+// (slight modification of gputools code)
+__host__ void getQRDecompBlockedMod(int rows, int cols, double tol, float * dQR,
+				    int blockSize, int stride, int * pivot, 
+				    double * qrAux, int * rank, float *dV, float *dW, 
+				    float *dT, float *du, float *dWtR, 
+				    float *dColNorms){
+  // Copyright 2009, Mark Seligman at Rapid Biologics, LLC.  All rights
+// reserved.
+//
+
+  int
+		fbytes = sizeof(float),
+		rowsk = stride, // # unprocessed rows = stride - k
+		colsk = cols,   // # unprocessed columns = cols - k
+		maxCol = cols - 1,  // Highest candidate column:  not fixed.
+		k = 0; // Number of columns processed.
+  const int maxRow = rows - 1;
+
+
+  checkCublasError("getQRDecompBlocked:");
+
+
+    // Presets the matrix of Householder vectors, dV, to zero.
+    // Padding with zeroes appears to offer better performance than
+    // direct operations on submatrices:  aligned access helps
+    // ensure coalescing.
+    //
+
+
+    checkCublasError("getQRDecompBlocked allocation:");
+
+    // Obtains the highest valued norm in order to approximate a condition-
+    // based lower bound, "minElt".
+    //
+    int maxIdx = cublasIsamax(cols, dColNorms, 1)-1;
+    float maxNorm = cublasSnrm2(rows, dQR + stride * maxIdx, 1);
+    int rk = 0; // Local value of rank;
+    int maxRank;
+    double minElt; // Lowest acceptable norm under given tolerance.
+
+    if (maxNorm < tol)
+      maxRank = 0; // Short-circuits the main loop
+    else {
+      minElt = (1.0 + maxNorm) * tol;
+      maxRank = rows > cols ? cols : rows;
+    }
+
+    float * pdQRBlock = dQR;
+
+    int blockCount = (cols + blockSize - 1) / blockSize;
+    for (int bc = 0; bc < blockCount; bc++) {
+      // Determines "blockEnd", which counts the number of columns remaining
+      // in the upcoming block.  Swaps trivial columns with the rightmost
+      // unvisited column until either a nontrivial column is found or all
+      // columns have been visited.  Note that 'blockEnd <= blockSize', with
+      // inequality possible only in the rightmost processed block.
+      //
+      // This pivoting scheme does not attempt to order columns by norm, nor
+      // does it recompute norms altered by the rank-one update within the
+      // upcoming block.  A higher-fidelity scheme is implemented in the non-
+      // blocked form of this function.  Sapienti sat.
+      //
+      int blockEnd = 0;
+      for (int i = k; i < k + blockSize && i < maxRank && i <= maxCol; i++) {
+        float colNorm = cublasSnrm2(rows, dQR + i * stride, 1);
+	while ( (colNorm < minElt) && (maxCol > i)) {
+	    cublasSswap(rows, dQR + i * stride, 1, dQR + maxCol*stride, 1);
+	    int tempIdx = pivot[maxCol];
+	    pivot[maxCol] = pivot[i];
+	    pivot[i] = tempIdx;
+	    maxCol--;
+	    colNorm = cublasSnrm2(rows, dQR + i * stride, 1);
+        }
+	if (colNorm >= minElt)
+	  blockEnd++;
+      }
+      rk += blockEnd;
+      float scales[blockSize];
+      double Beta[blockSize];
+
+      cudaMemset2D(dV, blockSize * fbytes, 0.f, blockSize * fbytes, rowsk);
+
+      float *pdVcol = dV;
+      float *pdVdiag = dV;
+      float *pdQRdiag = pdQRBlock;
+
+      for (int colIdx = 0; colIdx < blockEnd; colIdx++, pdVcol += rowsk, pdVdiag += (rowsk + 1),
+           pdQRdiag += (stride + 1), k++) {
+
+	cublasScopy(rowsk - colIdx, pdQRdiag, 1, pdVdiag, 1);
+
+	// Builds Householder vector from maximal column just copied.
+	// For now, uses slow memory transfers to modify leading element:
+	//      V_1 += sign(V_1) * normV.
+	//
+	float v1;	  
+	cublasGetVector(1, fbytes, pdVdiag, rowsk + 1, &v1, 1);
+	double v1Abs = fabs(v1);
+	if (k == maxRow) // The bottom row is not scaled.
+	  qrAux[k] = v1Abs;
+	else { // zero-valued "normV" should already have been ruled out.
+	  float normV = cublasSnrm2(rowsk - colIdx, pdQRdiag, 1);
+	  double recipNormV = 1.0 / normV;
+	  qrAux[k] = 1.0 + v1Abs * recipNormV;
+  	  scales[colIdx] = (v1 >= 0.f ? 1.f : -1.f) * recipNormV;
+
+          // Scales leading nonzero element of vector.
+	  //
+	  double fac = 1.0 + normV / v1Abs;
+	  cublasSscal(1, (float) fac, pdVdiag, 1);
+		  
+	  // Beta = -2 v^t v :  updates squared norm on host side.
+	  //
+	  Beta[colIdx] = -2.0 / (normV*normV + v1Abs * v1Abs * (-1.0 + fac * fac));
+
+	  // Rank-one update of the remainder of the block, "B":
+	  // u = Beta B^t v
+	  //
+	  cublasSgemv('T', rowsk, min(blockSize,colsk), (float) Beta[colIdx], pdQRBlock, stride, pdVcol, 1, 0.f, du, 1);
+				       
+          // B = B + v u^t
+	  //
+	  cublasSger(rowsk, min(blockSize,colsk), 1.0f, pdVcol, 1, du, 1, pdQRBlock,
+	  	  stride);
+	}
+      }
+
+      // If more unseen columns remain, updates the remainder of QR lying to
+      // the right of the block just updated.  This must be done unless we
+      // happen to have exited the inner loop without having applied any
+      // Householder transformations (i.e., blockEnd == 0).
+      //
+      if (bc < blockCount - 1 && blockEnd > 0) {
+	 // w_m = Beta (I + W V^t) v_m, where the unsubscripted matrices
+	 // refer to those built at step 'i-1', having 'i' columns.
+	 //
+	 // w_i = Beta v_i
+	 //
+	 //  T = V^t V
+	 //
+         cublasSsyrk('U', 'T', blockSize, rowsk, 1.f, dV, rowsk, 0.f, dT, blockSize);
+
+	 float *pdTcol = dT;
+	 float *pdWcol = dW;
+	 pdVcol = dV;
+	 for (int m = 0; m < blockSize; m++, pdWcol += rowsk, pdVcol += rowsk, pdTcol += blockSize) {
+	   cublasScopy(rowsk, pdVcol, 1, pdWcol, 1);
+           cublasSscal(rowsk, Beta[m], pdWcol, 1);
+	   // w_m = w_m + Beta W T(.,m)
+	   //
+	   if (m > 0) {
+	     cublasSgemv('N', rowsk, m, Beta[m], dW, rowsk, pdTcol, 1, 1.f, pdWcol, 1);
+	   }
+	 }
+
+	 // Updates R, beginning at current diagonal by:
+	 //   R = (I_m + V W^t) R = R + V (W^t R)
+	 //
+
+	 // WtR = W^t R
+	 //
+	 cublasSgemm('T','N', blockSize, colsk - blockSize, rowsk, 1.f, dW, rowsk, 
+	    pdQRBlock + blockSize * stride, stride, 0.f, dWtR, blockSize);
+
+	 // R = V WtR + R
+	 //
+	 cublasSgemm('N', 'N', rowsk, colsk - blockSize, blockSize, 1.f, dV,
+	       rowsk, dWtR, blockSize, 1.f, pdQRBlock+ blockSize * stride, stride);
+     }
+
+      // Flushes scaled Householder vectors to the subdiagonals of dQR,
+      // 'blockSize'-many at a time.  The only time a smaller number are
+      // sent occurs when a partial block remains at the right end.
+      //
+      pdVdiag = dV;
+      pdQRdiag = pdQRBlock;
+      for (int l = 0; l < blockEnd; l++, pdVdiag += (rowsk + 1), pdQRdiag += (stride + 1)) {
+	cublasSscal(rowsk - (l + 1), scales[l], pdVdiag + 1, 1);
+	cublasScopy(rowsk - (l + 1), pdVdiag + 1, 1, pdQRdiag + 1, 1);
+      }
+
+      pdQRBlock += blockSize * (stride + 1);
+      colsk -= blockSize;
+      rowsk -= blockSize;
+    }
+
+    *rank = rk;	
+    checkCublasError("getQRDecompBlocked, postblock:");
+    checkCudaError("getQRDecompBlocked:");
+     
+    // dQR now contains the upper-triangular portion of the factorization,
+    // R.
+    // dV is lower-triangular, and contains the Householder vectors, from
+    // which the Q portion can be derived.  An adjusted form of the
+    // diagonal is saved in qrAux, while the sub-diagonal portion is
+    // written onto QR.
+
+
+    checkCublasError("getQRDecompBlocked, freed memory:");
+}
+
+
+// Fills in the coefficients, residuals and effects matrices.
+// A slight tweak of a gputools function
+__host__ void getCREmod(float *dQR, int rows, int cols, int stride, int rank, 
+			double *qrAux, int yCols, float *coeffs, float *resids, 
+			float *effects, float *dDiags, float *dCoeffs, float *dResids,
+			float *dEffects){
+	const int
+		fbytes = sizeof(float);
+        // Used by effects, residual computations.
+	//
+	int maxIdx = min(rank, rows - 1);
+
+	float
+	  * diags = Calloc(rank * fbytes, float);
+
+
+	// Temporarily swaps diagonals with qrAux.
+
+	cublasScopy(rank, dQR, stride + 1, dDiags, 1);
+	cublasGetVector(rank, fbytes, dDiags, 1, diags, 1);
+
+	float *qrAuxFloat = Calloc(maxIdx * fbytes, float);
+	for (int i = 0; i < maxIdx; i++)
+	  qrAuxFloat[i] = qrAux[i];
+	cublasSetVector(maxIdx, fbytes, qrAuxFloat, 1, dQR, stride + 1);
+	Free(qrAuxFloat);
+
+	cublasSetMatrix(cols, yCols, fbytes, coeffs, cols, dCoeffs, cols);
+	cublasSetMatrix(rows, yCols, fbytes, effects, rows, dEffects, rows);
+	cublasSetMatrix(rows, yCols, fbytes, resids, rows, dResids, rows);
+
+	// Computes the effects matrix, intialized by caller to Y.
+
+	float
+		* pEffects = dEffects;
+
+	for (int i = 0; i < yCols; i++, pEffects += rows) {
+		float
+			* pQR = dQR;
+
+		for (int k = 0; k < maxIdx; k++, pQR += (stride + 1)) {
+			double
+				t = cublasSdot(rows - k, pQR, 1, pEffects +  k, 1);
+
+			t *= -1.0 / qrAux[k];
+			cublasSaxpy(rows - k, t, pQR, 1, pEffects + k, 1);
+		}
+	}
+
+	// Computes the residuals matrix, initialized by caller to zero.
+	// If not of full row rank, presets the remaining rows to those from
+	// effects.
+
+	if(rank < rows) {
+		for(int i = 0; i < yCols; i++) {
+			cublasScopy(rows - rank,  dEffects + i*rows + rank, 1,
+				dResids + i*rows + rank, 1);
+		}
+	}
+
+	float
+		* pResids = dResids;
+
+	for (int i = 0; i < yCols; i++, pResids += rows) {
+		for (int k = maxIdx - 1; k >= 0; k--) {
+			double
+				t = -(1.0 / qrAux[k])
+					* cublasSdot(rows - k, dQR + k*stride + k, 1, pResids + k, 1);
+
+			cublasSaxpy(rows -k, t, dQR + k*stride + k, 1, pResids + k, 1);
+		}
+	}
+	cublasScopy(maxIdx, dDiags, 1, dQR, stride + 1);
+
+	// Computes the coefficients matrix, initialized by caller to zero.
+
+	float
+		* pCoeffs = dCoeffs;
+
+	for(int i = 0; i < yCols; i++, pCoeffs += cols) {
+		cublasScopy(rank, dEffects + i*rows, 1, pCoeffs, 1);
+
+		float t;
+		for(int k = rank - 1; k > 0; k--) {
+		        cublasSscal(1, 1.f / diags[k], pCoeffs + k, 1);
+			cublasGetVector(1, fbytes, pCoeffs + k, 1, &t, 1);
+			cublasSaxpy(k, -t, dQR + k*stride, 1, pCoeffs, 1);
+		}
+		cublasSscal(1, 1.f / diags[0], pCoeffs, 1);
+	}
+	Free(diags);
+
+	cublasGetMatrix(cols, yCols, fbytes, dCoeffs, cols, coeffs, cols);
+	cublasGetMatrix(rows, yCols, fbytes, dResids, rows, resids, rows);
+	cublasGetMatrix(rows, yCols, fbytes, dEffects, rows, effects, rows);
+
+}
+
+
+
 //performs model search
 void lmsearch(float *X, int *rows, int *cols, float *Y, int *ycols, int *g, 
 	      float *aics, float *bics, float *logmargs, float *prob, 
@@ -84,19 +431,52 @@ void lmsearch(float *X, int *rows, int *cols, float *Y, int *ycols, int *g,
   int bit;
   float a, b, lml, maxlml;
   float totalprob;
-  float *dX, *dXm, *Xm = malloc(n*p*fbytes);
+  float *dX, *dXm, *dY, *Xm = (float *) malloc(n*p*fbytes);
   const unsigned blockExp = 7; // Gives blockSize = 2^7 = 128.
   int stride = alignBlock(n, blockExp);
+  int blockSize = 1 << blockExp;
+  float *dV, *dW, *dT, *du, *dWtR, *dColNorms, *dFColNorms;
+  int nthreads = 512, nblocks;
+  float *dResids, *dEffects, *dCoeffs, *dDiags;
+  float *ColNorms;
+
+  nblocks = p / nthreads;
+  if(nblocks * nthreads < p)
+    nblocks++;
 
   cublasInit();
+
   cublasAlloc(stride * p, fbytes, (void **)&dX);
   cublasAlloc(stride * p, fbytes, (void **)&dXm);
-
+  cublasAlloc(stride * blockSize, fbytes, (void**) &dV);
+  cublasAlloc(stride * blockSize, fbytes, (void**) &dW);
+  cublasAlloc(blockSize * blockSize, fbytes, (void**) &dT);
+  cublasAlloc(stride, fbytes, (void**) &du);
+  cublasAlloc(blockSize * (p - blockSize), fbytes, (void**) &dWtR);
+  cublasAlloc(p, fbytes, (void**) &dColNorms);
+  cublasAlloc(p, fbytes, (void**) &dFColNorms);
+  cublasAlloc(n * (*ycols), fbytes, (void**) &dResids);
+  cublasAlloc(n * (*ycols), fbytes, (void**) &dEffects);
+  cublasAlloc(p * (*ycols), fbytes, (void **) &dCoeffs);
+  cublasAlloc(p, fbytes, (void**) &dDiags);
+  cublasAlloc(n * (*ycols), fbytes, (void**) &dY);
   
   // This is overkill:  just need to zero the padding.
   // (copy full matrix X to device)
   cudaMemset2D(dX, p * fbytes, 0.f, p * fbytes, stride); 
   cublasSetMatrix(n, p, fbytes, X, n, dX, stride);
+
+  //copy Y to device
+  cublasSetMatrix(n, (*ycols), fbytes, Y, n, dY, n);
+
+  //calculate column norms of full matrix
+  getColNorms<<<nblocks, nthreads>>>(n, p, dX, stride, dFColNorms);
+  ColNorms = (float *) malloc(p*fbytes);
+  cudaMemcpy(ColNorms, dFColNorms, p*fbytes, cudaMemcpyDeviceToHost);
+  printf("\n");
+  for(i=0;i<p;i++)
+    printf("%3.3f\n",ColNorms[i]);
+  free(ColNorms);
     
   rank = (int *) malloc(ibytes);
   worstid = (int *) malloc(ibytes);
@@ -131,26 +511,55 @@ void lmsearch(float *X, int *rows, int *cols, float *Y, int *ycols, int *g,
   //for each model
   for(id = 0; id < M; id++){
 
+    Rprintf("\nModel %d\n", id);
+    Rprintf("Calculating pm\n");
     //copy the relevant columns of the full model matrix into the current model's
-    //model matrix. Note: R stores matrices/arrays in column major format.
+    //model matrix (Xm). Note: R stores matrices/arrays in column major format.
+    //Also calculates pm=ncol(Xm) and extracts appropriate column norms.
     mj = 0; //keeps track of column numbers of current model matrix
     pm = 0; //keeps track of number of variables in model matrix
-    for(j = 0; j < p; j++){    
-      bit = (id & ( 1 << j ) ) >> j;
+
+    for(j = 0; j < p; j++){  
+      bit = ( id & ( 1 << (j - 1) ) )  >> (j - 1)  ;
+      Rprintf("bit = %d and j = %d\n", bit, j);
       if(j == 0 || bit == 1){
 	cublasScopy(stride, dX + j*stride, 1, dXm + mj*stride, 1);
+	cublasScopy(1, dFColNorms + j, 1, dColNorms + mj, 1);
 	pm += 1;
 	mj += 1;
       }
     }
 
+    cublasGetMatrix(n, pm, fbytes, dXm, stride, Xm, n);
+
+    for(i=0; i<n; i++){
+      Rprintf("\n");
+      for(j=0; j<pm; j++){
+	Rprintf(" %3.3f ", Xm[i + j*n]);
+      }
+    }
+    Rprintf("\n");
+    
+    Rprintf("pm = %d\n", pm);
+
+    Rprintf("Colnorms \n");
+
+    ColNorms = (float *)malloc(pm*fbytes);
+    cublasGetVector(pm, fbytes, dColNorms, 1, ColNorms, 1);
+    //cudaMemcpy(ColNorms, dColNorms, pm*fbytes, cudaMemcpyDeviceToHost);
+
+    for(j = 0; j<pm; j++){
+      Rprintf("%3.3f\n", ColNorms[j]);
+    }
+
+    free(ColNorms);
+
     km = pm - 1;
-
-
+    
     //allocate memory for arrays required for getQR
-    coeffs = (float *) calloc(pm, fbytes);
-    resids = (float *) calloc(n, fbytes);
-    effects = (float *) malloc(n* (*ycols) *fbytes);
+    coeffs = (float *) malloc(pm * (*ycols) * fbytes);
+    resids = (float *) malloc(n * fbytes);
+    effects = (float *) malloc(n * (*ycols) *  fbytes);
     qrAux = (double *) calloc(pm, dbytes);
 
     if(coeffs == NULL){
@@ -170,9 +579,6 @@ void lmsearch(float *X, int *rows, int *cols, float *Y, int *ycols, int *g,
       exit(1);
     }
     
-    //required for getQR
-    memcpy(effects, Y, n* (*ycols) *fbytes);
-
     *rank = 1; //initialize
 
     //required for getQR
@@ -184,24 +590,29 @@ void lmsearch(float *X, int *rows, int *cols, float *Y, int *ycols, int *g,
     for(i = 0; i < pm; i++)
       pivot[i] = i;
 
-
+    //initialize device coefficients and resids to 0, effects to Y
+    cudaMemset(dCoeffs, 0.f, pm * (*ycols));
+    cudaMemset(dResids, 0.f, n  * (*ycols));
+    cublasScopy(n*(*ycols), dY, 1, dEffects, 1);
 
 
     // On return we have dXm in pivoted, packed QR form.
     //
-    getQRDecompBlocked(n, pm, tol, dXm, 1 << blockExp,
-		       stride, pivot, qrAux, rank);
+    getQRDecompBlockedMod(n, pm, tol, dXm, blockSize, stride, pivot, qrAux, rank, 
+			  dV, dW, dT, du, dWtR, dColNorms);
     cublasGetMatrix(n, pm, fbytes, dXm, stride, Xm, n);
-    
+
+    //get coefficients, residuals, and effects for current model using QR decomp
     if(*rank > 0)
-      getCRE(dXm, n, pm, stride, *rank, qrAux, yCols, coeffs, resids, effects);
+      getCREmod(Xm, n, pm, stride, *rank, qrAux, *ycols, coeffs, resids, effects,
+	dDiags, dCoeffs, dResids, dEffects);
     else // Residuals copied from Y.
-      memcpy(resids, Y, rows * yCols * fbytes);
+      memcpy(resids, Y, n * (*ycols) * fbytes);
 
-
-
-    //fit the current model
-    gpuLSFitF(Xm, n, pm, Y, *ycols, tol, coeffs, resids, effects, rank, pivot, qrAux);
+    Rprintf("Coefficients: \n");
+    for(i=0; i<pm; i++)
+      Rprintf("  %3.3f\n", coeffs[i]);
+      
 
     //compute the current model's R squared, used in marginal likelihood computation
     ssr = 0;
@@ -289,7 +700,19 @@ void lmsearch(float *X, int *rows, int *cols, float *Y, int *ycols, int *g,
   free(Xm);
   cublasFree(dX);
   cublasFree(dXm);
-
+  cublasFree(dW);
+  cublasFree(dV);
+  cublasFree(dT);
+  cublasFree(du);
+  cublasFree(dWtR);
+  cublasFree(dColNorms);
+  cublasFree(dFColNorms);
+  cublasFree(dResids);
+  cublasFree(dEffects);
+  cublasFree(dCoeffs); 
+  cublasFree(dY);
+  
+  
   cublasShutdown();
 
 }
