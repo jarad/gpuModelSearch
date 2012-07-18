@@ -2,13 +2,15 @@
 NVCC = nvcc
 CFLAGS = -g -G -I/apps/lib64/R/include -I../gputools/src -Xcompiler "-Wall -Wextra -fpic"
 SOURCES = lmsearch.cu
-OBJECTS = lmsearch.o cuseful.o lsfit.o qrdecomp.o
+OBJECTS = cuseful.o lsfit.o qrdecomp.o
 
 
-all:
-	$(NVCC) $(CFLAGS) -c $(SOURCES) -o lmsearch.o
-	$(NVCC) -shared -lcublas $(OBJECTS) -o lmsearch.so
+lmsearch.so: lmsearch.o
+	$(NVCC) -shared -lcublas $(OBJECTS)
+
+lmsearch.o:
+	$(NVCC) $(CFLAGS) -c $(SOURCES)
 
 clean:
-	rm lmsearch.o
+	rm lmsearch.o lmsearch.so
 
