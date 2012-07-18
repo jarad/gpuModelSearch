@@ -8,8 +8,6 @@
 #include "lsfit.h"
 #include "qrdecomp.h"
 
-#define NTHREADS 512
-
 //function prototype for the function to be called from R
 extern "C" void Clmsearch(float *X, int *rows, int *cols, float *Y, int *ycols, 
 			  int *g, float *aics, float *bics, float *logmargs, 
