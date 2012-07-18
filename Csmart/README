@@ -1,0 +1,6 @@
+To make the R library use 'make'.
+To remove unnecessary executables use 'make clean'.
+
+Notes:
+This library doesn't have as many problems with the gputools bug. By slightly modifying the gputools functions to remove unnecessary memory transfers, the bug is no longer preventing me from fitting all possible models with a larger number of covariates. I think the bug will still affect fit times if the R process isn't restarted between fitting classes of models though.
+
