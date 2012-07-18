@@ -2,6 +2,3 @@ The following commands compile the source into the shared library filed that R c
 
 make
 
-nvcc -shared -lcublas lmsearch.o cuseful.o lsfit.o qrdecomp.o -o lmsearch.so
-
-
