@@ -1,4 +1,3 @@
-The following commands compile the source into the shared library filed that R can call:
-
-make
+To make the R library use 'make'.
+To remove unnecessary executables use 'make clean'.
 
