@@ -1,0 +1,293 @@
+Cublas Bug README
+
+Originally, I thought that the gputools R package had a bug. The file gputoolsbug.r has my first exploration of the bug. However, I've determine that the bug is actually in the cublas library - both versions. Essentially, after a process creates a new cublas handle and destroys it enough times, it generates a segfault. To see this, first, compile all of the files with make.
+
+
+
+Cublas bug in R
+
+Open up Rtest.r and start a new R process. Run the block of code under the heading ##Rcbulas. This code calls Rcublas from RcublasTest.cu which simply creates a cublas handle, allocates some memory on the gpu using cublasAlloc, frees the memory, then destroys the cublas handle. The R code simply calls it repeatedly and prints the iteration number to the screen. Somewhere around i=13182 R will catch a segfault. Here's the full error message I recieved:
+
+...
+[1] 13180
+[1] 13181
+[1] 13182
+
+ *** caught segfault ***
+address (nil), cause 'unknown'
+
+Traceback:
+ 1: .C("Rcublas", n)
+
+Possible actions:
+1: abort (with core dump, if enabled)
+2: normal R exit
+3: exit R without saving workspace
+4: exit R saving workspace
+
+So clearly the bug isn't in gputools, but rather in either cublas or the cuda api.
+
+
+CublasV2 bug in R
+
+Now the cublas library has been updated, so I checked to see if the bug was present in version 2. Again open up Rtest.r and start a new R process. Run the block of code under the heading ##RcublasV2. This code calls RcublasV2 from RcublasV2Test.cu which does the same thing as Rcublas from above except using cublas_v2.h instead of cublas.h - and thus using cudaMalloc and cudaFree instead of cublasAlloc and cublasFree. The R code is analogous to before. Again, at around i=13182 R will catch a segfault. here's teh full error message I recieved:
+
+...
+[1] 13180
+[1] 13181
+[1] 13182
+
+ *** caught segfault ***
+address 0xffffffff, cause 'memory not mapped'
+
+Traceback:
+ 1: .C("RcublasV2", n)
+
+Possible actions:
+1: abort (with core dump, if enabled)
+2: normal R exit
+3: exit R without saving workspace
+4: exit R saving workspace
+
+So the bug persists in cublas v2. 
+
+
+
+
+No bug without cublas in R
+
+In order to determine whether the cublas library is the culprit, RcudaTest.cu just allocates memory to the gpu then frees it. Opent RTest.r again and start a new R process. Run the block of code under the heading ##Rcuda. This code calls Rcuda from RcudaTest.cu. Rcuda simply allocates then frees a block of memory on the gpu. The R code calls it over and over, like before. This code runs error free for me, suggesting that the problem is in the cublas library.
+
+
+
+
+Cublas bug even without R
+
+It's possible that the bug is caused by how R interfaces with C. I didn't think this was likely a priori, but it's easy to check. The file cublasV2Test.cu is written purely in cuda C and simple creates a cublas handle, allocates some memory on the gpu, destroys that memory, then destroys the handle over and over again. To run this code simply type ./cublasV2Test.out in the shell. At around i=13182 the program should hit an error. The error it throws on me is below (without Backtrace and Memory map information, this full information is included at the bottom of the page):
+
+ 13180 
+ 13181 
+ 13182 
+*** glibc detected *** /home/simpsonm/gpuModelSearch/CublasBug/cublasV2Test.out: free(): invalid pointer: 0x0000000044fe5d20 ***
+
+
+
+
+
+Cublas bug without R or memory allocation
+
+The error above suggested to me that the problem is in the allocation and freeing of the gpu's memory while the cublas handle is active, so cublasV2nomemTest.cu simply removes that part. It only creates and destroys the cublas handle without any memory allocation. Once again at around i=13182 the program runs into an error. Again, part of the error information is directly below while the full information is at the end of the page:
+
+ 13180 
+ 13181 
+ 13182 
+*** glibc detected *** /home/simpsonm/gpuModelSearch/CublasBug/cublasV2nomemTest.out: free(): invalid pointer: 0x0000000046630cf0 ***
+
+Not that in all cases, it's the 13183rd attempt to create then destroy the cublas handle that throws the error (i starts at 0 in all cases). Apparently this is a hard upper limit on how many times a process can create and destroy a cublas handle, at least on our system.
+
+
+Full Errors:
+
+
+Full cublasV2Test.cu error:
+
+ 13180 
+ 13181 
+ 13182 
+*** glibc detected *** /home/simpsonm/gpuModelSearch/CublasBug/cublasV2Test.out: free(): invalid pointer: 0x0000000044fe5d20 ***
+======= Backtrace: =========
+/lib64/libc.so.6[0x3f9cc750c6]
+/usr/local/cuda/lib64/libcublas.so.4(+0x22519)[0x7f907969d519]
+/usr/local/cuda/lib64/libcublas.so.4(cublasDestroy_v2+0x1c)[0x7f90796a5c5c]
+/home/simpsonm/gpuModelSearch/CublasBug/cublasV2Test.out[0x40085e]
+/lib64/libc.so.6(__libc_start_main+0xfd)[0x3f9cc1ecdd]
+/home/simpsonm/gpuModelSearch/CublasBug/cublasV2Test.out[0x400749]
+======= Memory map: ========
+00400000-00402000 r-xp 00000000 00:18 36569117                           /home/simpsonm/gpuModelSearch/CublasBug/cublasV2Test.out
+00601000-00602000 rw-p 00001000 00:18 36569117                           /home/simpsonm/gpuModelSearch/CublasBug/cublasV2Test.out
+0074a000-45013000 rw-p 00000000 00:00 0                                  [heap]
+200000000-200100000 ---p 00000000 00:00 0 
+200100000-200200000 rw-p 00000000 00:00 0 
+200200000-2000000000 ---p 00000000 00:00 0 
+3f9c800000-3f9c820000 r-xp 00000000 09:04 4325446                        /lib64/ld-2.12.so
+3f9ca1f000-3f9ca20000 r--p 0001f000 09:04 4325446                        /lib64/ld-2.12.so
+3f9ca20000-3f9ca21000 rw-p 00020000 09:04 4325446                        /lib64/ld-2.12.so
+3f9ca21000-3f9ca22000 rw-p 00000000 00:00 0 
+3f9cc00000-3f9cd97000 r-xp 00000000 09:04 4325470                        /lib64/libc-2.12.so
+3f9cd97000-3f9cf97000 ---p 00197000 09:04 4325470                        /lib64/libc-2.12.so
+3f9cf97000-3f9cf9b000 r--p 00197000 09:04 4325470                        /lib64/libc-2.12.so
+3f9cf9b000-3f9cf9c000 rw-p 0019b000 09:04 4325470                        /lib64/libc-2.12.so
+3f9cf9c000-3f9cfa1000 rw-p 00000000 00:00 0 
+3f9d000000-3f9d083000 r-xp 00000000 09:04 4325818                        /lib64/libm-2.12.so
+3f9d083000-3f9d282000 ---p 00083000 09:04 4325818                        /lib64/libm-2.12.so
+3f9d282000-3f9d283000 r--p 00082000 09:04 4325818                        /lib64/libm-2.12.so
+3f9d283000-3f9d284000 rw-p 00083000 09:04 4325818                        /lib64/libm-2.12.so
+3f9d400000-3f9d402000 r-xp 00000000 09:04 4325799                        /lib64/libdl-2.12.so
+3f9d402000-3f9d602000 ---p 00002000 09:04 4325799                        /lib64/libdl-2.12.so
+3f9d602000-3f9d603000 r--p 00002000 09:04 4325799                        /lib64/libdl-2.12.so
+3f9d603000-3f9d604000 rw-p 00003000 09:04 4325799                        /lib64/libdl-2.12.so
+3f9d800000-3f9d817000 r-xp 00000000 09:04 4325492                        /lib64/libpthread-2.12.so
+3f9d817000-3f9da16000 ---p 00017000 09:04 4325492                        /lib64/libpthread-2.12.so
+3f9da16000-3f9da17000 r--p 00016000 09:04 4325492                        /lib64/libpthread-2.12.so
+3f9da17000-3f9da18000 rw-p 00017000 09:04 4325492                        /lib64/libpthread-2.12.so
+3f9da18000-3f9da1c000 rw-p 00000000 00:00 0 
+3f9dc00000-3f9dc15000 r-xp 00000000 09:04 4325845                        /lib64/libz.so.1.2.3
+3f9dc15000-3f9de14000 ---p 00015000 09:04 4325845                        /lib64/libz.so.1.2.3
+3f9de14000-3f9de15000 r--p 00014000 09:04 4325845                        /lib64/libz.so.1.2.3
+3f9de15000-3f9de16000 rw-p 00015000 09:04 4325845                        /lib64/libz.so.1.2.3
+3f9e000000-3f9e007000 r-xp 00000000 09:04 4325687                        /lib64/librt-2.12.so
+3f9e007000-3f9e206000 ---p 00007000 09:04 4325687                        /lib64/librt-2.12.so
+3f9e206000-3f9e207000 r--p 00006000 09:04 4325687                        /lib64/librt-2.12.so
+3f9e207000-3f9e208000 rw-p 00007000 09:04 4325687                        /lib64/librt-2.12.so
+3fa8c00000-3fa8c16000 r-xp 00000000 09:04 4325854                        /lib64/libgcc_s-4.4.6-20110824.so.1
+3fa8c16000-3fa8e15000 ---p 00016000 09:04 4325854                        /lib64/libgcc_s-4.4.6-20110824.so.1
+3fa8e15000-3fa8e16000 rw-p 00015000 09:04 4325854                        /lib64/libgcc_s-4.4.6-20110824.so.1
+3fa9000000-3fa90e8000 r-xp 00000000 09:04 6443652                        /usr/lib64/libstdc++.so.6.0.13
+3fa90e8000-3fa92e8000 ---p 000e8000 09:04 6443652                        /usr/lib64/libstdc++.so.6.0.13
+3fa92e8000-3fa92ef000 r--p 000e8000 09:04 6443652                        /usr/lib64/libstdc++.so.6.0.13
+3fa92ef000-3fa92f1000 rw-p 000ef000 09:04 6443652                        /usr/lib64/libstdc++.so.6.0.13
+3fa92f1000-3fa9306000 rw-p 00000000 00:00 0 
+7f9076d96000-7f9076e97000 rw-p 00000000 00:00 0 
+7f9076e97000-7f9076f97000 rw-s 160a670000 00:05 15982                    /dev/nvidia0
+7f9076f97000-7f9077097000 rw-p 00000000 00:00 0 
+7f9077097000-7f9077197000 rw-s 164272c000 00:05 15982                    /dev/nvidia0
+7f9077197000-7f9077297000 rw-p 00000000 00:00 0 
+7f9077297000-7f9077298000 rw-s 9fee3000 00:05 15982                      /dev/nvidia0
+7f9077298000-7f9077299000 rw-s 1630e4c000 00:05 15982                    /dev/nvidia0
+7f9077299000-7f907769b000 rw-s fd088b000 00:05 15982                     /dev/nvidia0
+7f907769b000-7f907769c000 rw-s 9fee2000 00:05 15982                      /dev/nvidia0
+7f907769c000-7f907769d000 rw-s 1638e0d000 00:05 15982                    /dev/nvidia0
+7f907769d000-7f9077a9f000 rw-s 1611205000 00:05 15982                    /dev/nvidia0
+7f9077a9f000-7f9077aa0000 rw-s 9fee1000 00:05 15982                      /dev/nvidia0
+7f9077aa0000-7f9077aa1000 rw-s 1642612000 00:05 15982                    /dev/nvidia0
+7f9077aa1000-7f9077ea3000 rw-s b35fa5000 00:05 15982                     /dev/nvidia0
+7f9077ea3000-7f9077ec4000 rw-p 00000000 00:00 0 
+7f9077ec4000-7f9077ec5000 ---p 00000000 00:00 0 
+7f9077ec5000-7f90788c5000 rwxp 00000000 00:00 0 
+7f90788c5000-7f90789c5000 rw-p 00000000 00:00 0 
+7f90789c5000-7f90790f3000 r-xp 00000000 09:04 6443526                    /usr/lib64/libcuda.so.290.10
+7f90790f3000-7f90792f3000 ---p 0072e000 09:04 6443526                    /usr/lib64/libcuda.so.290.10
+7f90792f3000-7f90793e2000 rw-p 0072e000 09:04 6443526                    /usr/lib64/libcuda.so.290.10
+7f90793e2000-7f9079407000 rw-p 00000000 00:00 0 
+7f907941d000-7f9079423000 rw-p 00000000 00:00 0 
+7f9079423000-7f9079479000 r-xp 00000000 09:04 6560497                    /usr/local/cuda/lib64/libcudart.so.4.1.28
+7f9079479000-7f9079678000 ---p 00056000 09:04 6560497                    /usr/local/cuda/lib64/libcudart.so.4.1.28
+7f9079678000-7f9079679000 rw-p 00055000 09:04 6560497                    /usr/local/cuda/lib64/libcudart.so.4.1.28
+7f9079679000-7f907967b000 rw-p 00000000 00:00 0 
+7f907967b000-7f907f0d1000 r-xp 00000000 09:04 6560474                    /usr/local/cuda/lib64/libcublas.so.4.1.28
+7f907f0d1000-7f907f2d1000 ---p 05a56000 09:04 6560474                    /usr/local/cuda/lib64/libcublas.so.4.1.28
+7f907f2d1000-7f907f2dc000 rw-p 05a56000 09:04 6560474                    /usr/local/cuda/lib64/libcublas.so.4.1.28
+7f907f2dc000-7f907f2e4000 rw-p 00000000 00:00 0 
+7f907f2f5000-7f907f2f6000 r--s de009000 00:05 15998                      /dev/nvidia3
+7f907f2f6000-7f907f2f7000 r--s da009000 00:05 15993                      /dev/nvidia2
+7f907f2f7000-7f907f2f8000 r--s d6009000 00:05 15988                      /dev/nvidia1
+7f907f2f8000-7f907f2f9000 r--s d2009000 00:05 15982                      /dev/nvidia0
+7f907f2f9000-7f907f2fb000 rw-p 00000000 00:00 0 
+7fff7b37d000-7fff7b390000 rwxp 00000000 00:00 0                          [stack]
+7fff7b390000-7fff7b392000 rw-p 00000000 00:00 0 
+7fff7b3ff000-7fff7b400000 r-xp 00000000 00:00 0                          [vdso]
+ffffffffff600000-ffffffffff601000 r-xp 00000000 00:00 0                  [vsyscall]
+aborted (core dumped)
+
+
+
+
+Full cublasV2nomemTest.cu error:
+
+ 13180 
+ 13181 
+ 13182 
+*** glibc detected *** /home/simpsonm/gpuModelSearch/CublasBug/cublasV2nomemTest.out: free(): invalid pointer: 0x0000000046630cf0 ***
+======= Backtrace: =========
+/lib64/libc.so.6[0x3f9cc750c6]
+/usr/local/cuda/lib64/libcublas.so.4(+0x22519)[0x7fb803143519]
+/usr/local/cuda/lib64/libcublas.so.4(cublasDestroy_v2+0x1c)[0x7fb80314bc5c]
+/home/simpsonm/gpuModelSearch/CublasBug/cublasV2nomemTest.out[0x4007a1]
+/lib64/libc.so.6(__libc_start_main+0xfd)[0x3f9cc1ecdd]
+/home/simpsonm/gpuModelSearch/CublasBug/cublasV2nomemTest.out[0x4006a9]
+======= Memory map: ========
+00400000-00402000 r-xp 00000000 00:18 36569120                           /home/simpsonm/gpuModelSearch/CublasBug/cublasV2nomemTest.out
+00601000-00602000 rw-p 00001000 00:18 36569120                           /home/simpsonm/gpuModelSearch/CublasBug/cublasV2nomemTest.out
+01d95000-4665e000 rw-p 00000000 00:00 0                                  [heap]
+200000000-200100000 ---p 00000000 00:00 0 
+200100000-200200000 rw-p 00000000 00:00 0 
+200200000-2000000000 ---p 00000000 00:00 0 
+3f9c800000-3f9c820000 r-xp 00000000 09:04 4325446                        /lib64/ld-2.12.so
+3f9ca1f000-3f9ca20000 r--p 0001f000 09:04 4325446                        /lib64/ld-2.12.so
+3f9ca20000-3f9ca21000 rw-p 00020000 09:04 4325446                        /lib64/ld-2.12.so
+3f9ca21000-3f9ca22000 rw-p 00000000 00:00 0 
+3f9cc00000-3f9cd97000 r-xp 00000000 09:04 4325470                        /lib64/libc-2.12.so
+3f9cd97000-3f9cf97000 ---p 00197000 09:04 4325470                        /lib64/libc-2.12.so
+3f9cf97000-3f9cf9b000 r--p 00197000 09:04 4325470                        /lib64/libc-2.12.so
+3f9cf9b000-3f9cf9c000 rw-p 0019b000 09:04 4325470                        /lib64/libc-2.12.so
+3f9cf9c000-3f9cfa1000 rw-p 00000000 00:00 0 
+3f9d000000-3f9d083000 r-xp 00000000 09:04 4325818                        /lib64/libm-2.12.so
+3f9d083000-3f9d282000 ---p 00083000 09:04 4325818                        /lib64/libm-2.12.so
+3f9d282000-3f9d283000 r--p 00082000 09:04 4325818                        /lib64/libm-2.12.so
+3f9d283000-3f9d284000 rw-p 00083000 09:04 4325818                        /lib64/libm-2.12.so
+3f9d400000-3f9d402000 r-xp 00000000 09:04 4325799                        /lib64/libdl-2.12.so
+3f9d402000-3f9d602000 ---p 00002000 09:04 4325799                        /lib64/libdl-2.12.so
+3f9d602000-3f9d603000 r--p 00002000 09:04 4325799                        /lib64/libdl-2.12.so
+3f9d603000-3f9d604000 rw-p 00003000 09:04 4325799                        /lib64/libdl-2.12.so
+3f9d800000-3f9d817000 r-xp 00000000 09:04 4325492                        /lib64/libpthread-2.12.so
+3f9d817000-3f9da16000 ---p 00017000 09:04 4325492                        /lib64/libpthread-2.12.so
+3f9da16000-3f9da17000 r--p 00016000 09:04 4325492                        /lib64/libpthread-2.12.so
+3f9da17000-3f9da18000 rw-p 00017000 09:04 4325492                        /lib64/libpthread-2.12.so
+3f9da18000-3f9da1c000 rw-p 00000000 00:00 0 
+3f9dc00000-3f9dc15000 r-xp 00000000 09:04 4325845                        /lib64/libz.so.1.2.3
+3f9dc15000-3f9de14000 ---p 00015000 09:04 4325845                        /lib64/libz.so.1.2.3
+3f9de14000-3f9de15000 r--p 00014000 09:04 4325845                        /lib64/libz.so.1.2.3
+3f9de15000-3f9de16000 rw-p 00015000 09:04 4325845                        /lib64/libz.so.1.2.3
+3f9e000000-3f9e007000 r-xp 00000000 09:04 4325687                        /lib64/librt-2.12.so
+3f9e007000-3f9e206000 ---p 00007000 09:04 4325687                        /lib64/librt-2.12.so
+3f9e206000-3f9e207000 r--p 00006000 09:04 4325687                        /lib64/librt-2.12.so
+3f9e207000-3f9e208000 rw-p 00007000 09:04 4325687                        /lib64/librt-2.12.so
+3fa8c00000-3fa8c16000 r-xp 00000000 09:04 4325854                        /lib64/libgcc_s-4.4.6-20110824.so.1
+3fa8c16000-3fa8e15000 ---p 00016000 09:04 4325854                        /lib64/libgcc_s-4.4.6-20110824.so.1
+3fa8e15000-3fa8e16000 rw-p 00015000 09:04 4325854                        /lib64/libgcc_s-4.4.6-20110824.so.1
+3fa9000000-3fa90e8000 r-xp 00000000 09:04 6443652                        /usr/lib64/libstdc++.so.6.0.13
+3fa90e8000-3fa92e8000 ---p 000e8000 09:04 6443652                        /usr/lib64/libstdc++.so.6.0.13
+3fa92e8000-3fa92ef000 r--p 000e8000 09:04 6443652                        /usr/lib64/libstdc++.so.6.0.13
+3fa92ef000-3fa92f1000 rw-p 000ef000 09:04 6443652                        /usr/lib64/libstdc++.so.6.0.13
+3fa92f1000-3fa9306000 rw-p 00000000 00:00 0 
+7fb80083c000-7fb80093d000 rw-p 00000000 00:00 0 
+7fb80093d000-7fb800a3d000 rw-s fa52af000 00:05 15982                     /dev/nvidia0
+7fb800a3d000-7fb800b3d000 rw-p 00000000 00:00 0 
+7fb800b3d000-7fb800c3d000 rw-s fc0762000 00:05 15982                     /dev/nvidia0
+7fb800c3d000-7fb800d3d000 rw-p 00000000 00:00 0 
+7fb800d3d000-7fb800d3e000 rw-s 9fee3000 00:05 15982                      /dev/nvidia0
+7fb800d3e000-7fb800d3f000 rw-s b31095000 00:05 15982                     /dev/nvidia0
+7fb800d3f000-7fb801141000 rw-s 1630d5b000 00:05 15982                    /dev/nvidia0
+7fb801141000-7fb801142000 rw-s 9fee2000 00:05 15982                      /dev/nvidia0
+7fb801142000-7fb801143000 rw-s 1633730000 00:05 15982                    /dev/nvidia0
+7fb801143000-7fb801545000 rw-s 1630c98000 00:05 15982                    /dev/nvidia0
+7fb801545000-7fb801546000 rw-s 9fee1000 00:05 15982                      /dev/nvidia0
+7fb801546000-7fb801547000 rw-s fb5e48000 00:05 15982                     /dev/nvidia0
+7fb801547000-7fb801949000 rw-s 165deb1000 00:05 15982                    /dev/nvidia0
+7fb801949000-7fb80196a000 rw-p 00000000 00:00 0 
+7fb80196a000-7fb80196b000 ---p 00000000 00:00 0 
+7fb80196b000-7fb80236b000 rwxp 00000000 00:00 0 
+7fb80236b000-7fb80246b000 rw-p 00000000 00:00 0 
+7fb80246b000-7fb802b99000 r-xp 00000000 09:04 6443526                    /usr/lib64/libcuda.so.290.10
+7fb802b99000-7fb802d99000 ---p 0072e000 09:04 6443526                    /usr/lib64/libcuda.so.290.10
+7fb802d99000-7fb802e88000 rw-p 0072e000 09:04 6443526                    /usr/lib64/libcuda.so.290.10
+7fb802e88000-7fb802ead000 rw-p 00000000 00:00 0 
+7fb802ec3000-7fb802ec9000 rw-p 00000000 00:00 0 
+7fb802ec9000-7fb802f1f000 r-xp 00000000 09:04 6560497                    /usr/local/cuda/lib64/libcudart.so.4.1.28
+7fb802f1f000-7fb80311e000 ---p 00056000 09:04 6560497                    /usr/local/cuda/lib64/libcudart.so.4.1.28
+7fb80311e000-7fb80311f000 rw-p 00055000 09:04 6560497                    /usr/local/cuda/lib64/libcudart.so.4.1.28
+7fb80311f000-7fb803121000 rw-p 00000000 00:00 0 
+7fb803121000-7fb808b77000 r-xp 00000000 09:04 6560474                    /usr/local/cuda/lib64/libcublas.so.4.1.28
+7fb808b77000-7fb808d77000 ---p 05a56000 09:04 6560474                    /usr/local/cuda/lib64/libcublas.so.4.1.28
+7fb808d77000-7fb808d82000 rw-p 05a56000 09:04 6560474                    /usr/local/cuda/lib64/libcublas.so.4.1.28
+7fb808d82000-7fb808d8a000 rw-p 00000000 00:00 0 
+7fb808d9b000-7fb808d9c000 r--s de009000 00:05 15998                      /dev/nvidia3
+7fb808d9c000-7fb808d9d000 r--s da009000 00:05 15993                      /dev/nvidia2
+7fb808d9d000-7fb808d9e000 r--s d6009000 00:05 15988                      /dev/nvidia1
+7fb808d9e000-7fb808d9f000 r--s d2009000 00:05 15982                      /dev/nvidia0
+7fb808d9f000-7fb808da1000 rw-p 00000000 00:00 0 
+7ffff970a000-7ffff971e000 rwxp 00000000 00:00 0                          [stack]
+7ffff971e000-7ffff971f000 rw-p 00000000 00:00 0 
+7ffff97e8000-7ffff97e9000 r-xp 00000000 00:00 0                          [vdso]
+ffffffffff600000-ffffffffff601000 r-xp 00000000 00:00 0                  [vsyscall]
+aborted (core dumped)

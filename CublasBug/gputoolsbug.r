@@ -1,3 +1,7 @@
+####This script is outdated but is included hear for informative purposes.
+####The bug is actually in the cublas library, not gputools. See README for details.
+
+
 ##This script reproduces a bug in gputools. After calling gpuLm.fit enough times in
 ##one session, I get the following error on any call to gpuLm.fit:
 
