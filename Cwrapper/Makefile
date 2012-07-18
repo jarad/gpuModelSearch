@@ -1,14 +1,16 @@
 
-NVCC = nvcc
+CUDA_INSTALL_PATH ?= /usr/local/cuda
+
+NVCC := $(CUDA_INSTALL_PATH)/bin/nvcc
 CFLAGS = -g -G -Xcompiler "-Wall -Wextra -fpic"
 SOURCES = lmsearch.cu
-OBJECTS = cuseful.o lsfit.o qrdecomp.o
+OBJECTS = lmsearch.o cuseful.o lsfit.o qrdecomp.o
 
 # Includes
 INCLUDES += -I. -I/apps/lib64/R/include -I../gputools/src
 
-lmsearch.so: lmsearch.o
-	$(NVCC) -shared -lcublas $(OBJECTS)
+lmsearch.so: $(OBJECTS)
+	$(NVCC) -shared -lcublas $(OBJECTS) -o lmsearch.so
 
 lmsearch.o:
 	$(NVCC) $(CFLAGS) $(INCLUDES) -c $(SOURCES)
