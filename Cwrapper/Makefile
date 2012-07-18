@@ -1,7 +1,20 @@
-all:
-	nvcc -g -G -I/apps/lib64/R/include -I../gputools/src -Xcompiler "-Wall -Wextra -fpic" -c lmsearch.cu -o lmsearch.o
-	nvcc -shared -lcublas lmsearch.o cuseful.o lsfit.o qrdecomp.o -o lmsearch.so
+
+CUDA_INSTALL_PATH ?= /usr/local/cuda
+
+NVCC := $(CUDA_INSTALL_PATH)/bin/nvcc
+CFLAGS = -g -G -Xcompiler "-Wall -Wextra -fpic"
+SOURCES = lmsearch.cu
+OBJECTS = lmsearch.o cuseful.o lsfit.o qrdecomp.o
+
+# Includes
+INCLUDES += -I. -I/apps/lib64/R/include -I../gputools/src
+
+lmsearch.so: $(OBJECTS)
+	$(NVCC) -shared -lcublas $(OBJECTS) -o lmsearch.so
+
+lmsearch.o:
+	$(NVCC) $(CFLAGS) $(INCLUDES) -c $(SOURCES)
 
 clean:
-	rm lmsearch.o
+	rm lmsearch.o lmsearch.so
 
