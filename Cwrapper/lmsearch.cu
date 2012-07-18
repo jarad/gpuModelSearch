@@ -8,11 +8,13 @@
 #include "lsfit.h"
 #include "qrdecomp.h"
 
+#define NTHREADS 512
+
 //function prototype for the function to be called from R
-extern "C" void lmsearch(float *X, int *rows, int *cols, float *Y, int *ycols, 
-			 int *g, float *aics, float *bics, float *logmargs, 
-			 float *prob, float *otherprob, int *models, int *num_save, 
-			 int *sorttype );   
+extern "C" void Clmsearch(float *X, int *rows, int *cols, float *Y, int *ycols, 
+			  int *g, float *aics, float *bics, float *logmargs, 
+			  float *prob, float *otherprob, int *models, int *binids,
+			  int *num_save, int *sorttype );   
 
 //computes aic
 float aic(int n, int p, float sighat){
@@ -64,10 +66,12 @@ void arraysort(float *src, int *idx, float *dest, int num_elem, int max){
   *idx = id;
 }
 
+
 //performs model search
-void lmsearch(float *X, int *rows, int *cols, float *Y, int *ycols, int *g, 
-	      float *aics, float *bics, float *logmargs, float *prob, 
-	      float *otherprob, int *models, int *num_save, int *sorttype ){
+void Clmsearch(float *X, int *rows, int *cols, float *Y, int *ycols, int *g, 
+	       float *aics, float *bics, float *logmargs, float *prob, 
+	       float *otherprob, int *models, int *binids, int *num_save, 
+	       int *sorttype ){
 
   int p = *cols, k = p - 1, M = 1 << k, n = *rows;
   int id, km, pm, mj;
@@ -81,27 +85,63 @@ void lmsearch(float *X, int *rows, int *cols, float *Y, int *ycols, int *g,
   float score, *worstscore; 
   float sighat, ynorm=0, ssr, ymn=0, Rsq;
   int *worstid;
-  int bit;
+  int bit, binid[k];
   float a, b, lml, maxlml;
   float totalprob;
   
 
-  rank = (int *) malloc(ibytes);
-  worstid = (int *) malloc(ibytes);
+  rank       = (int *)  malloc(ibytes);
+  worstid    = (int *)  malloc(ibytes);
   worstscore = (float *) malloc(fbytes);
-
+  
+  //required for gpuLmfit
+  pivot = (int *) malloc(p * ibytes);
+  
+  //allocate memory for model matrix of current model
+  //note: will be overwritten repeatedly in loop
+  Xm = (float *) malloc( n * p * fbytes );
+  
+  //allocate memory for arrays required for gpuLmfit
+  //note: will be overwritten repeatedly in loop
+  coeffs  = (float *)  malloc(p * (*ycols) * fbytes);
+  resids  = (float *)  malloc(n * (*ycols) * fbytes);
+  effects = (float *)  malloc(n * (*ycols) * fbytes);
+  qrAux   = (double *) malloc(p * dbytes);
+  
+  if(coeffs == NULL){
+    Rprintf("\nMemory for Xm coeffs to allocate\n");
+    exit(1);
+  }
+  if(resids == NULL){
+    Rprintf("\nMemory for resids failed to allocate\n");
+    exit(1);
+  }
+  if(effects == NULL){
+    Rprintf("\nMemory for effects failed to allocate\n");
+    exit(1);
+  }
+  if(qrAux == NULL){
+    Rprintf("\nMemory for qrAux failed to allocate\n");
+    exit(1);
+  }
+  if(Xm == NULL){
+    Rprintf("\nMemory for Xm failed to allocate\n");
+    exit(1);
+  }
   if(rank == NULL){
     Rprintf("\nMemory for rank failed to allocate\n");
     exit(1);
   }
-
   if(worstid == NULL){
     Rprintf("\nMemory for worstid failed to allocate\n");
     exit(1);
   }
-
   if(worstscore == NULL){
     Rprintf("\nMemory for worstscore failed to allocate\n");
+    exit(1);
+  }
+  if(pivot == NULL){
+    Rprintf("\nMemory for pivot failed to allocate\n");
     exit(1);
   }
   
@@ -120,70 +160,45 @@ void lmsearch(float *X, int *rows, int *cols, float *Y, int *ycols, int *g,
   for(id = 0; id < M; id++){
 
     mj = 0; //keeps track of column numbers of current model matrix
-    km = 0; 
-
-    //calculate km: #variables in Xm
-    for(j = 0; j < k; j++){
-      bit = (id & ( 1 << j ) ) >> j;
-      if(bit == 1){
-	km += 1;
-      }
-    }
-    pm = km + 1;
-
-
-    //allocate memory for model matrix of current model
-    Xm = (float *) malloc( n * pm * fbytes );
-    if(Xm == NULL){
-      Rprintf("\nMemory for Xm failed to allocate\n");
-      exit(1);
-    }
+    pm = 0;
     
     //copy the relevant columns of the full model matrix into the current model's
     //model matrix. Note: R stores matrices/arrays in column major format.
     for(j = 0; j < p; j++){    
-      bit = (id & ( 1 << j ) ) >> j;
-      if(j == 0 || bit == 1){
+      if(j == 0){
 	memcpy(Xm + mj*n, X + j*n, fbytes*n);
 	mj += 1;
+	pm += 1;
+      }//end if
+      else{
+	bit = (id & ( 1 << (j - 1) ) ) >> (j - 1);
+	binid[k - j] = bit;
+	if(bit == 1){
+	  memcpy(Xm + mj*n, X + j*n, fbytes*n);
+	  mj += 1;
+	  pm += 1;
+	}//end if
+      }//end else
+    }//end loop
+    km = pm - 1;
+
+    //initialization required for gpuLmfit
+    //note: not using memset to avoid possible unwanted behavior
+    memcpy(effects, Y, n * (*ycols) *fbytes);
+    for(i = 0; i < n; i++){
+      if(i < pm){
+	coeffs[i] = 0;
+	qrAux[i] = 0;
       }
+      else if(i < pm * (*ycols) ){
+	coeffs[i] = 0;
+      }
+				  
+      resids[i] = 0;
     }
-
-
-    //allocate memory for arrays required for gpuLmfit
-    coeffs = (float *) calloc(pm, fbytes);
-    resids = (float *) calloc(n, fbytes);
-    effects = (float *) malloc(n* (*ycols) *fbytes);
-    qrAux = (double *) calloc(pm, dbytes);
-
-    if(coeffs == NULL){
-      Rprintf("\nMemory for Xm coeffs to allocate\n");
-      exit(1);
-    }
-    if(resids == NULL){
-      Rprintf("\nMemory for resids failed to allocate\n");
-      exit(1);
-    }
-    if(effects == NULL){
-      Rprintf("\nMemory for effects failed to allocate\n");
-      exit(1);
-    }
-    if(qrAux == NULL){
-      Rprintf("\nMemory for qrAux failed to allocate\n");
-      exit(1);
-    }
-    
-    //required for gpuLmfit
-    memcpy(effects, Y, n* (*ycols) *fbytes);
 
     *rank = 1; //initialize
-
-    //required for gpuLmfit
-    pivot = (int *) malloc(pm*ibytes);
-    if(pivot == NULL){
-      Rprintf("\nMemory for pivot failed to allocate\n");
-      exit(1);
-    }
+  
     for(i = 0; i < pm; i++)
       pivot[i] = i;
 
@@ -192,7 +207,7 @@ void lmsearch(float *X, int *rows, int *cols, float *Y, int *ycols, int *g,
 
     //compute the current model's R squared, used in marginal likelihood computation
     ssr = 0;
-    for(i=0; i<n; i++)
+    for(i = 0; i < n * (*ycols); i++)
       ssr += resids[i]*resids[i];
     sighat = ssr / (n-pm); 
     Rsq = 1 - ssr/ynorm;
@@ -223,6 +238,13 @@ void lmsearch(float *X, int *rows, int *cols, float *Y, int *ycols, int *g,
       bics[id] = b;
       logmargs[id] = lml;
       models[id] = id+1;
+
+      //copy binary ID of current model
+      for(i = 0; i < k; i++){
+	binids[id + i * (*num_save)] = binid[i];
+      }
+
+
     }
     else{ 
 
@@ -247,18 +269,15 @@ void lmsearch(float *X, int *rows, int *cols, float *Y, int *ycols, int *g,
 	aics[*worstid] = a;
 	bics[*worstid] = b;
 	logmargs[*worstid] = lml;
+
+	//copy binary ID of current model
+	for(i = 0; i < k; i++){
+	  binids[*worstid + i * (*num_save)] = binid[i];
+	}
+
       }
 
     }
-    
-    //free memory use for storing information on current model
-    //note: only memory whose size depends on the particular model
-    free(coeffs);
-    free(resids);
-    free(effects);
-    free(qrAux);
-    free(pivot);
-    free(Xm);
     
   }
 
@@ -270,9 +289,16 @@ void lmsearch(float *X, int *rows, int *cols, float *Y, int *ycols, int *g,
   *otherprob = 1 - *otherprob;
 
 
-  //free remaining memory
+  //free memory
+  free(Xm);
   free(rank);
   free(worstid);
   free(worstscore);
+  free(coeffs);
+  free(resids);
+  free(effects);
+  free(qrAux);
+  free(pivot);
+
 
 }

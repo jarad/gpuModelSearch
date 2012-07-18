@@ -1,17 +1,17 @@
 library(gputools)
 
-gpuclmsearch <- function(X, Y, g=NULL, sort="AIC", nsave=1000){
+gpuClmsearch <- function(X, Y, g=NULL, sort="AIC", nsave=1000){
 
   if(is.null(g))
     g <- max((ncol(X)-1)^2, nrow(X))
 
-  out <- gpuclmsearch.fit(X, Y, g, sort, nsave)
+  out <- gpuClmsearch.fit(X, Y, g, sort, nsave)
   return(out)
 }
 
-gpuclmsearch.fit <- function(X, Y, g, sorttype, nsave){
+gpuClmsearch.fit <- function(X, Y, g, sorttype, nsave){
 
-  if(!is.loaded("lmsearch"))
+  if(!is.loaded("Clmsearch"))
     dyn.load("lmsearch.so")
   nsave <- min(nsave, 2^(ncol(X)-1))
   mode(g) <- "integer"
@@ -21,6 +21,8 @@ gpuclmsearch.fit <- function(X, Y, g, sorttype, nsave){
   n <- as.integer(nrow(X))
   p <- as.integer(ncol(X))
   ycols <- as.integer(ncol(Y))
+
+  binids <- matrix(0L,ncol=p-1, nrow=nsave)
 
   if(sorttype=="AIC"){
     sort <- 1L
@@ -42,19 +44,17 @@ gpuclmsearch.fit <- function(X, Y, g, sorttype, nsave){
   mode(bics) <- "single"
   mode(lmls) <- "single"
 
-  z <- .C("lmsearch", X, n, p, Y, ycols, g, aic=aics, bic=bics, lml=lmls,
-          probs=probs, otherprob=otherprob, id=models, nsave, sort)
+  z <- .C("Clmsearch", X, n, p, Y, ycols, g, aic=aics, bic=bics, lml=lmls,
+          probs=probs, otherprob=otherprob, id=models, bin=binids, nsave, sort)
 
   attr(z$aic,       "Csingle") <- NULL
   attr(z$bin,       "Csingle") <- NULL
   attr(z$lml,       "Csingle") <- NULL
   attr(z$probs,     "Csingle") <- NULL
   attr(z$otherprob, "Csingle") <- NULL
+  attr(z$bin,       "Csingle") <- NULL
 
-  binid <- modelid(z$id, p-1, nsave)
-  
-  
-  out <- data.frame(ID=z$id,  BinaryID=modelidchar(binid, nsave),
+  out <- data.frame(ID=z$id,  BinaryID=modelidchar(z$bin, nsave),
                     AIC=z$aic,
                     AICrank=rank(z$aic,ties.method="first"),
                     BIC=z$bic,
@@ -62,7 +62,7 @@ gpuclmsearch.fit <- function(X, Y, g, sorttype, nsave){
                     LogMargLike=z$lml,
                     LMLrank=rank(-z$lml,ties.method="first"),
                     PostProb=z$probs,
-                    Variables=modelvars(binid, colnames(X)[-1], nsave))
+                    Variables=modelvars(z$bin, colnames(X)[-1], nsave))
     
  
   if(sorttype=="AIC"){
@@ -94,27 +94,9 @@ modelvars <- function(binid, colnam, nsave){
   out <- rep("a", nsave)
   
   for(i in 1:nsave){
-    out[i] <- paste(colnam[which(binid[i,]==1)], collapse=" ")
+    out[i] <- paste(colnam[which(rev(binid[i,])==1)], collapse=" ")
   }
   return(out)
-}
-
-
-modelid <-  function(id, k, nsave){
-  M <- 2^k
-  binid <- matrix(0,ncol=k, nrow=nsave)
-
-  for(i in 1:nsave){
-    remain <- id[i] - 1
-    for(j in 1:k){
-      tmp <- 2^(k - j)
-      if(remain >= tmp){
-        remain <- remain - tmp
-        binid[i,j] <- 1
-      }
-    }
-  }
-  return(binid)
 }
 
 
