@@ -111,7 +111,7 @@ genX <- function(n, k){
 ##generate a response vector
 genY <- function(n,k,X){
   betas <- t(t(c(rnorm(k+1))))
-  Y <- X%*%betas
+  Y <- X%*%betas + c(rnorm(n, sd=5))
   return(Y)
 }
 
