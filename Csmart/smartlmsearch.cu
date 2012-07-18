@@ -8,10 +8,10 @@
 
 
 //function prototype for the function to be called from R
-extern "C" void lmsearch(float *X, int *rows, int *cols, float *Y, int *ycols, 
-			 int *g, float *aics, float *bics, float *logmargs, 
-			 float *prob, float *otherprob, int *models, int *num_save, 
-			 int *sorttype );   
+extern "C" void CSlmsearch(float *X, int *rows, int *cols, float *Y, int *ycols, 
+			   int *g, float *aics, float *bics, float *logmargs, 
+			   float *prob, float *otherprob, int *models, int *binids, 
+			   int *num_save, int *sorttype );   
 
 //computes aic
 float aic(int n, int p, float sighat){
@@ -339,9 +339,6 @@ __host__ void getCREmod(float *dQR, int rows, int cols, int stride, int rank,
 	cublasSetVector(maxIdx, fbytes, qrAuxFloat, 1, dQR, stride + 1);
 	Free(qrAuxFloat);
 
-	cublasSetMatrix(cols, yCols, fbytes, coeffs, cols, dCoeffs, cols);
-	cublasSetMatrix(rows, yCols, fbytes, effects, rows, dEffects, rows);
-	cublasSetMatrix(rows, yCols, fbytes, resids, rows, dResids, rows);
 
 	// Computes the effects matrix, intialized by caller to Y.
 
@@ -361,10 +358,10 @@ __host__ void getCREmod(float *dQR, int rows, int cols, int stride, int rank,
 		}
 	}
 
+	
 	// Computes the residuals matrix, initialized by caller to zero.
 	// If not of full row rank, presets the remaining rows to those from
 	// effects.
-
 	if(rank < rows) {
 		for(int i = 0; i < yCols; i++) {
 			cublasScopy(rows - rank,  dEffects + i*rows + rank, 1,
@@ -374,6 +371,7 @@ __host__ void getCREmod(float *dQR, int rows, int cols, int stride, int rank,
 
 	float
 		* pResids = dResids;
+
 
 	for (int i = 0; i < yCols; i++, pResids += rows) {
 		for (int k = maxIdx - 1; k >= 0; k--) {
@@ -408,14 +406,18 @@ __host__ void getCREmod(float *dQR, int rows, int cols, int stride, int rank,
 	cublasGetMatrix(rows, yCols, fbytes, dResids, rows, resids, rows);
 	cublasGetMatrix(rows, yCols, fbytes, dEffects, rows, effects, rows);
 
+	
+
+
 }
 
 
 
 //performs model search
-void lmsearch(float *X, int *rows, int *cols, float *Y, int *ycols, int *g, 
-	      float *aics, float *bics, float *logmargs, float *prob, 
-	      float *otherprob, int *models, int *num_save, int *sorttype ){
+void CSlmsearch(float *X, int *rows, int *cols, float *Y, int *ycols, int *g, 
+		float *aics, float *bics, float *logmargs, float *prob, 
+		float *otherprob, int *models, int *binids, int *num_save, 
+		int *sorttype ){
 
   int p = *cols, k = p - 1, M = 1 << k, n = *rows;
   int id, km, pm, mj;
@@ -428,18 +430,18 @@ void lmsearch(float *X, int *rows, int *cols, float *Y, int *ycols, int *g,
   float score, *worstscore; 
   float sighat, ynorm=0, ssr, ymn=0, Rsq;
   int *worstid;
-  int bit;
+  int bit, binid[k];
   float a, b, lml, maxlml;
   float totalprob;
-  float *dX, *dXm, *dY, *Xm = (float *) malloc(n*p*fbytes);
+  float *dX, *dXm, *dY;
   const unsigned blockExp = 7; // Gives blockSize = 2^7 = 128.
   int stride = alignBlock(n, blockExp);
   int blockSize = 1 << blockExp;
   float *dV, *dW, *dT, *du, *dWtR, *dColNorms, *dFColNorms;
   int nthreads = 512, nblocks;
   float *dResids, *dEffects, *dCoeffs, *dDiags;
-  float *ColNorms;
 
+  //sets the number of blocks to use in column norm algorithm
   nblocks = p / nthreads;
   if(nblocks * nthreads < p)
     nblocks++;
@@ -471,17 +473,38 @@ void lmsearch(float *X, int *rows, int *cols, float *Y, int *ycols, int *g,
 
   //calculate column norms of full matrix
   getColNorms<<<nblocks, nthreads>>>(n, p, dX, stride, dFColNorms);
-  ColNorms = (float *) malloc(p*fbytes);
-  cudaMemcpy(ColNorms, dFColNorms, p*fbytes, cudaMemcpyDeviceToHost);
-  printf("\n");
-  for(i=0;i<p;i++)
-    printf("%3.3f\n",ColNorms[i]);
-  free(ColNorms);
     
   rank = (int *) malloc(ibytes);
   worstid = (int *) malloc(ibytes);
   worstscore = (float *) malloc(fbytes);
 
+  //allocate memory for arrays required for getQR
+  coeffs  = (float *)  malloc(p * (*ycols) * fbytes);
+  resids  = (float *)  malloc(n * fbytes);
+  effects = (float *)  malloc(n * (*ycols) *  fbytes);
+  qrAux   = (double *) malloc(p * dbytes);
+  pivot   = (int *)    malloc(p * ibytes);
+
+  if(pivot == NULL){
+    Rprintf("\nMemory for pivot failed to allocate\n");
+    exit(1);
+  }
+  if(coeffs == NULL){
+    Rprintf("\nMemory for Xm coeffs to allocate\n");
+    exit(1);
+  }
+  if(resids == NULL){
+    Rprintf("\nMemory for resids failed to allocate\n");
+    exit(1);
+  }
+  if(effects == NULL){
+    Rprintf("\nMemory for effects failed to allocate\n");
+    exit(1);
+  }
+  if(qrAux == NULL){
+    Rprintf("\nMemory for qrAux failed to allocate\n");
+    exit(1);
+  }
   if(rank == NULL){
     Rprintf("\nMemory for rank failed to allocate\n");
     exit(1);
@@ -511,8 +534,6 @@ void lmsearch(float *X, int *rows, int *cols, float *Y, int *ycols, int *g,
   //for each model
   for(id = 0; id < M; id++){
 
-    Rprintf("\nModel %d\n", id);
-    Rprintf("Calculating pm\n");
     //copy the relevant columns of the full model matrix into the current model's
     //model matrix (Xm). Note: R stores matrices/arrays in column major format.
     //Also calculates pm=ncol(Xm) and extracts appropriate column norms.
@@ -520,103 +541,60 @@ void lmsearch(float *X, int *rows, int *cols, float *Y, int *ycols, int *g,
     pm = 0; //keeps track of number of variables in model matrix
 
     for(j = 0; j < p; j++){  
-      bit = ( id & ( 1 << (j - 1) ) )  >> (j - 1)  ;
-      Rprintf("bit = %d and j = %d\n", bit, j);
-      if(j == 0 || bit == 1){
+      if(j == 0){
+	//copy intercept column
 	cublasScopy(stride, dX + j*stride, 1, dXm + mj*stride, 1);
 	cublasScopy(1, dFColNorms + j, 1, dColNorms + mj, 1);
 	pm += 1;
 	mj += 1;
-      }
-    }
+      }//end if
+      else{
+	//copy covariate columns
+	bit = ( id & ( 1 << (j - 1) ) )  >> (j - 1) ;
+	binid[k - j] = bit;
+	if(bit == 1){
+	  cublasScopy(stride, dX + j*stride, 1, dXm + mj*stride, 1);
+	  cublasScopy(1, dFColNorms + j, 1, dColNorms + mj, 1);
+	  pm += 1;
+	  mj += 1;
+	}//end if
 
-    cublasGetMatrix(n, pm, fbytes, dXm, stride, Xm, n);
+      }//end else
 
-    for(i=0; i<n; i++){
-      Rprintf("\n");
-      for(j=0; j<pm; j++){
-	Rprintf(" %3.3f ", Xm[i + j*n]);
-      }
-    }
-    Rprintf("\n");
+    }//end for loop
     
-    Rprintf("pm = %d\n", pm);
-
-    Rprintf("Colnorms \n");
-
-    ColNorms = (float *)malloc(pm*fbytes);
-    cublasGetVector(pm, fbytes, dColNorms, 1, ColNorms, 1);
-    //cudaMemcpy(ColNorms, dColNorms, pm*fbytes, cudaMemcpyDeviceToHost);
-
-    for(j = 0; j<pm; j++){
-      Rprintf("%3.3f\n", ColNorms[j]);
-    }
-
-    free(ColNorms);
-
     km = pm - 1;
     
-    //allocate memory for arrays required for getQR
-    coeffs = (float *) malloc(pm * (*ycols) * fbytes);
-    resids = (float *) malloc(n * fbytes);
-    effects = (float *) malloc(n * (*ycols) *  fbytes);
-    qrAux = (double *) calloc(pm, dbytes);
-
-    if(coeffs == NULL){
-      Rprintf("\nMemory for Xm coeffs to allocate\n");
-      exit(1);
-    }
-    if(resids == NULL){
-      Rprintf("\nMemory for resids failed to allocate\n");
-      exit(1);
-    }
-    if(effects == NULL){
-      Rprintf("\nMemory for effects failed to allocate\n");
-      exit(1);
-    }
-    if(qrAux == NULL){
-      Rprintf("\nMemory for qrAux failed to allocate\n");
-      exit(1);
-    }
-    
-    *rank = 1; //initialize
-
-    //required for getQR
-    pivot = (int *) malloc(pm*ibytes);
-    if(pivot == NULL){
-      Rprintf("\nMemory for pivot failed to allocate\n");
-      exit(1);
-    }
+    //initialize
+    *rank = 1;
     for(i = 0; i < pm; i++)
       pivot[i] = i;
 
     //initialize device coefficients and resids to 0, effects to Y
-    cudaMemset(dCoeffs, 0.f, pm * (*ycols));
-    cudaMemset(dResids, 0.f, n  * (*ycols));
+    cudaMemset(dCoeffs, 0.f, pm * (*ycols) * fbytes);
+    cudaMemset(dResids, 0.f, n  * (*ycols) * fbytes);
     cublasScopy(n*(*ycols), dY, 1, dEffects, 1);
 
+    //resetting to 0
+    for(i = 0; i < pm; i++)
+      qrAux[i] = 0;
 
     // On return we have dXm in pivoted, packed QR form.
     //
     getQRDecompBlockedMod(n, pm, tol, dXm, blockSize, stride, pivot, qrAux, rank, 
 			  dV, dW, dT, du, dWtR, dColNorms);
-    cublasGetMatrix(n, pm, fbytes, dXm, stride, Xm, n);
-
+    
     //get coefficients, residuals, and effects for current model using QR decomp
     if(*rank > 0)
-      getCREmod(Xm, n, pm, stride, *rank, qrAux, *ycols, coeffs, resids, effects,
+      getCREmod(dXm, n, pm, stride, *rank, qrAux, *ycols, coeffs, resids, effects,
 	dDiags, dCoeffs, dResids, dEffects);
     else // Residuals copied from Y.
       memcpy(resids, Y, n * (*ycols) * fbytes);
 
-    Rprintf("Coefficients: \n");
-    for(i=0; i<pm; i++)
-      Rprintf("  %3.3f\n", coeffs[i]);
-      
 
     //compute the current model's R squared, used in marginal likelihood computation
     ssr = 0;
-    for(i=0; i<n; i++)
+    for(i = 0; i < n * (*ycols); i++)
       ssr += resids[i]*resids[i];
     sighat = ssr / (n-pm); 
     Rsq = 1 - ssr/ynorm;
@@ -647,6 +625,12 @@ void lmsearch(float *X, int *rows, int *cols, float *Y, int *ycols, int *g,
       bics[id] = b;
       logmargs[id] = lml;
       models[id] = id+1;
+
+      //copy binary ID of current model
+      for(i = 0; i < k; i++){
+	binids[id + i * (*num_save)] = binid[i];
+      }
+
     }
     else{ 
 
@@ -671,17 +655,17 @@ void lmsearch(float *X, int *rows, int *cols, float *Y, int *ycols, int *g,
 	aics[*worstid] = a;
 	bics[*worstid] = b;
 	logmargs[*worstid] = lml;
+	
+	//copy binary ID of current model
+	for(i = 0; i < k; i++){
+	  binids[*worstid + i * (*num_save)] = binid[i];
+	}
+
+	
       }
 
     }
     
-    //free memory use for storing information on current model
-    //note: only memory whose size depends on the particular model
-    free(coeffs);
-    free(resids);
-    free(effects);
-    free(qrAux);
-    free(pivot);
     
   }
 
@@ -693,11 +677,10 @@ void lmsearch(float *X, int *rows, int *cols, float *Y, int *ycols, int *g,
   *otherprob = 1 - *otherprob;
 
 
-  //free remaining memory
+  //free memory
   free(rank);
   free(worstid);
   free(worstscore);
-  free(Xm);
   cublasFree(dX);
   cublasFree(dXm);
   cublasFree(dW);
@@ -711,6 +694,11 @@ void lmsearch(float *X, int *rows, int *cols, float *Y, int *ycols, int *g,
   cublasFree(dEffects);
   cublasFree(dCoeffs); 
   cublasFree(dY);
+  free(coeffs);
+  free(resids);
+  free(effects);
+  free(qrAux);
+  free(pivot);
   
   
   cublasShutdown();
