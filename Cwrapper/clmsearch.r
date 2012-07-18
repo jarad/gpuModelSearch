@@ -12,7 +12,7 @@ gpuClmsearch <- function(X, Y, g=NULL, sort="AIC", nsave=1000){
 gpuClmsearch.fit <- function(X, Y, g, sorttype, nsave){
 
   if(!is.loaded("Clmsearch"))
-    dyn.load("lmsearch.so")
+    dyn.load("~/gpuModelSearch/Cwrapper/lmsearch.so")
   nsave <- min(nsave, 2^(ncol(X)-1))
   mode(g) <- "integer"
   mode(X) <- "single"

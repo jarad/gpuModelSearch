@@ -11,8 +11,8 @@ gpuCSlmsearch <- function(X, Y, g=NULL, sort="AIC", nsave=1000){
 
 gpuCSlmsearch.fit <- function(X, Y, g, sorttype, nsave){
 
-  if(!is.loaded("SClmsearch"))
-    dyn.load("../Csmart/smartlmsearch.so")
+  if(!is.loaded("CSlmsearch"))
+    dyn.load("~/gpuModelSearch/Csmart/smartlmsearch.so")
   nsave <- min(nsave, 2^(ncol(X)-1))
   mode(g) <- "integer"
   mode(X) <- "single"
