@@ -1,0 +1,8 @@
+To Do List (to be updated at the end of every day for the next day):
+
+1. Consolidate all of the timing functions/info in the /timing folder.
+2. Find out why the C wrapper is so slow and try to speed it up.
+3. Make the C Smart makefile like the C wrapper makefile.
+4. Look for more ways to improve the C Smart wrapper.
+5. Fix the posterior probability bug in the C wrapper, the C Smart wrapper and potentially in the R wrapper - sometimes the total model probability is greater than 1. Probably just a numerical issue - find a better way to compute these probabilities.
+6. re-time the C and R wrappers and time the C Smart wrapper for the first time; summarize the results.
