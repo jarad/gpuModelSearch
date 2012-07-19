@@ -5,7 +5,7 @@
 n <- 10L
 i <- 0
 if(!is.loaded("Rcublas"))
-  dyn.load("~/gpuModelSearch/CublasBug/RcublasTest.so")
+  dyn.load("RcublasTest.so")
 while(i < 50000){
   print(i)
   z <- .C("Rcublas", n)
@@ -16,7 +16,7 @@ while(i < 50000){
 n <- 10L
 i <- 0
 if(!is.loaded("Rcuda"))
-  dyn.load("~/gpuModelSearch/CublasBug/RcudaTest.so")
+  dyn.load("RcudaTest.so")
 while(i < 50000){
   print(i)
   z <- .C("Rcuda", n)
@@ -27,7 +27,7 @@ while(i < 50000){
 n <- 10L
 i <- 0
 if(!is.loaded("RcublasV2"))
-  dyn.load("~/gpuModelSearch/CublasBug/RcublasV2Test.so")
+  dyn.load("RcublasV2Test.so")
 while(i < 50000){
   print(i)
   z <- .C("RcublasV2", n)
