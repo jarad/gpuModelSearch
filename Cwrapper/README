@@ -1,3 +1,7 @@
 To make the R library use 'make'.
 To remove unnecessary executables use 'make clean'.
 
+This library calls a wrapper written in C to fit all possible sub-models from a full model matrix. The wrapper pulls out the appropriate columns of the full model matrix and passes them to the gputools function gpuLSFitF to actually fit the model, then does some housekeeping to keep track of AIC, BIC, logMarginalLikelihood and so forth. Currently, this wrapper is _slower_ than the R wrapper for unknown reasons.
+
+
+

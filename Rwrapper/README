@@ -1,0 +1,1 @@
+This library calls a wrapper written in R to fit all possible sub-models from a full model matrix. The wrapper pulls out the appropriate columns of the full model matrix and passes them to the gputools function gpuLm.fit to actually fit the model, then does some housekeeping to keep track of AIC, BIC, logMarginalLikelihood and so forth. 
