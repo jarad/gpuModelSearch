@@ -1,7 +1,7 @@
 To make the R library use 'make'.
 To remove unnecessary executables use 'make clean'.
 
-This library calls a "smart" wrapper (the C Smart of CS wrapper for short) written in Cuda C to fit all possible sub-models from a full model matrix. The wrapper is "smart" because it preallocates memory on the gpu and on the host for a variety of purposes and reuses this memory for each sub-model that is fit instead allocating each time. Modified versions of the gputools functions getQRDecompBlocked and getCRE are used to actually fit the models. The wrapper also keeps track of AIC, BIC, logMarginalLikelihood and so forth. Currently, the wrapper appears significantly faster than both the C and R wrappers for some reason.
+This library calls a "smart" wrapper (the C Smart of CS wrapper for short) written in Cuda C to fit all possible sub-models from a full model matrix. The wrapper is "smart" because it preallocates memory on the gpu and on the host for a variety of purposes and reuses this memory for each sub-model that is fit instead allocating each time. Modified versions of the gputools functions getQRDecompBlocked and getCRE are used to actually fit the models. The wrapper also keeps track of AIC, BIC, logMarginalLikelihood and so forth. Currently, the wrapper appears significantly faster than both the C and R wrappers.
 
 Note:
 This library doesn't have as many problems with the cublas library bug. By slightly modifying the gputools functions to remove unnecessary memory transfers, the bug is no longer preventing me from fitting all possible models with a larger number of covariates. However, the bug will still affect fit times if the R process isn't restarted between fitting classes of models.
