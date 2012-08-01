@@ -2,7 +2,7 @@
 CUDA_INSTALL_PATH ?= /usr/local/cuda
 
 NVCC := $(CUDA_INSTALL_PATH)/bin/nvcc
-CFLAGS = -g -G -Xcompiler "-Wall -Wextra -fpic"
+CFLAGS = -Xcompiler "-Wall -Wextra -fpic"
 SOURCES = lmsearch.cu
 OBJECTS = lmsearch.o cuseful.o lsfit.o qrdecomp.o
 
