@@ -1,44 +1,14 @@
 
 library(gputools)
 
-##converts model id to a binary string
-modelid <-  function(id, k){
-  M <- 2^k
-  binid <- rep(0,k)
-  remain <- id - 1
-  for(i in 1:k){
-    tmp <- 2^(k - i)
-    if(remain >= tmp){
-      remain <- remain - tmp
-      binid[i] <- 1
-    }
-  }
-  return(binid)
-}
-
-##takes model id and full model matrix, outputs model matrix for model id
-modelmat <- function(X, binid){
-  idx <- c(1, (which(binid==1)+1) )
-  Xm <- matrix(  X[,idx], ncol=sum(binid)+1)
-  colnames(Xm) <- colnames(X)[idx]
-  return(Xm)
-}
-
-
-
-
 ##Stores model selection info of the best 1000 models according to sortby
-gpuRlmsearch <- function(X, Y, g=nrow(Y), sortby="AIC", storemodels=FALSE,
-                        printi=FALSE){
+gpuRlmsearch <- function(X, Y, g=nrow(Y), sortby="AIC"){
   p <- ncol(X) #number of regressors, including intercept
   k <- p - 1 #number of possible covariates
   n <- nrow(X) #sample size
   M <- 2^k #number of possible models (all contain intercept)
   nlist <- min(M, 1000)
   
-  if(storemodels == TRUE) ##only used if full model info is desired
-    models <- list()
-
   Ynorm <- sum( ( Y-mean(Y) )^2 )
   ##C is a common multiplicative constant to marginal likelihood of all models
   ## C <- margC(n, Ynorm)
@@ -108,7 +78,6 @@ gpuRlmsearch <- function(X, Y, g=nrow(Y), sortby="AIC", storemodels=FALSE,
     else{
       totalprob <- totalprob + exp(lml - maxlml)
     }
-
     
     if(Score < WorstScore){
       ID[WorstIdx] <- i
@@ -119,15 +88,8 @@ gpuRlmsearch <- function(X, Y, g=nrow(Y), sortby="AIC", storemodels=FALSE,
       Vars[WorstIdx] <- paste(colnames(Xm),collapse=" ")
     }
     
-    ##save full model info, if wanted
-    if(storemodels == TRUE){
-      gout$BinID <- binid
-      gout$ID <- i 
-      models[[WorstIdx]] <- gout ##full model information for model i
-    }
-    if(printi==TRUE)
-      print(i)
     i <-  i + 1
+
   }
 
   Ar <- rank(Aic) ##create rankings by AIC
@@ -141,18 +103,19 @@ gpuRlmsearch <- function(X, Y, g=nrow(Y), sortby="AIC", storemodels=FALSE,
   ##create output list, out$list contains data frame of model selection info
   ##out$models contains model specific information - coefficients, resids, et
   out <- list()
+
+  out$Models <- data.frame(ID=ID, BinaryID=BinId, AIC=Aic, AICrank=Ar, BIC=Bic,
+                         BICrank=Br, LogMargLike=LogMargLike, PostProb=Prob,
+                         MLrank=Mr, Variables=Vars)
+  
   out$OtherProb <- OtherProb
-  out$list <- data.frame(ID=ID, BinaryID=BinId, AIC=Aic, AICrank=Ar, BIC=Bic,
-                         BICrank=Br, LogMargLike=LogMargLike, Prob=Prob, MLrank=Mr, Variables=Vars)
-  if(storemodels == TRUE)
-    out$models <- models
 
   if(sortby=="AIC")
-    out$list <- out$list[ order(Ar),]
+    out$Models <- out$Models[ order(Ar),]
   else if(sortby=="BIC")
-    out$list <- out$list[ order(Br),]
+    out$Models <- out$Models[ order(Br),]
   else
-    out$list <- out$list[ order(Mr),]
+    out$Models <- out$Models[ order(Mr),]
   
   return(out)
 }
@@ -187,16 +150,25 @@ logmarglik <- function(n, k, g, Rsq, Ynorm){
 }
 
 
-##generate a model matrix
-genX <- function(n, k){
-  X <- matrix(c(rep(1,n),rnorm(n*k)),ncol=k+1)
-  colnames(X) <- c("Int", paste("x", c(1:k), sep=""))
-  return(X)
+##converts model id to a binary string
+modelid <-  function(id, k){
+  M <- 2^k
+  binid <- rep(0,k)
+  remain <- id - 1
+  for(i in 1:k){
+    tmp <- 2^(k - i)
+    if(remain >= tmp){
+      remain <- remain - tmp
+      binid[i] <- 1
+    }
+  }
+  return(binid)
 }
 
-##generate a response vector
-genY <- function(n,k,X){
-  betas <- t(t(c(rnorm(k+1))))
-  Y <- X%*%betas + c(rnorm(n, sd=5))
-  return(Y)
+##takes model id and full model matrix, outputs model matrix for model id
+modelmat <- function(X, binid){
+  idx <- c(1, (which(binid==1)+1) )
+  Xm <- matrix(  X[,idx], ncol=sum(binid)+1)
+  colnames(Xm) <- colnames(X)[idx]
+  return(Xm)
 }
