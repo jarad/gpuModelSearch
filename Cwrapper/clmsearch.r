@@ -38,8 +38,8 @@ gpuClmsearch.fit <- function(X, Y, g, sorttype, nsave){
   bics <- aics
   lmls <- -aics
   models    <- integer(nsave)
-  probs     <- single(nsave)
-  otherprob <- single(1)
+  probs     <- rep(0, nsave)
+  otherprob <- 0
   mode(aics) <- "single"
   mode(bics) <- "single"
   mode(lmls) <- "single"
@@ -50,9 +50,8 @@ gpuClmsearch.fit <- function(X, Y, g, sorttype, nsave){
   attr(z$aic,       "Csingle") <- NULL
   attr(z$bin,       "Csingle") <- NULL
   attr(z$lml,       "Csingle") <- NULL
-  attr(z$probs,     "Csingle") <- NULL
-  attr(z$otherprob, "Csingle") <- NULL
   attr(z$bin,       "Csingle") <- NULL
+
 
   out <- data.frame(ID=z$id,  BinaryID=modelidchar(z$bin, nsave),
                     AIC=z$aic,
@@ -94,24 +93,9 @@ modelvars <- function(binid, colnam, nsave){
   out <- rep("a", nsave)
   
   for(i in 1:nsave){
-    out[i] <- paste(colnam[which(rev(binid[i,])==1)], collapse=" ")
+    out[i] <- paste(c("Int", colnam[which(rev(binid[i,])==1)]), collapse=" ")
   }
   return(out)
 }
 
-
-##generate a model matrix
-genX <- function(n, k){
-  X <- matrix(c(rep(1,n),rnorm(n*k)),ncol=k+1)
-  colnames(X) <- c("Int", paste("x", c(1:k), sep=""))
-  return(X)
-}
-
-
-##generate a response vector
-genY <- function(n,k,X){
-  betas <- t(t(c(rnorm(k+1))))
-  Y <- X%*%betas + c(rnorm(n, sd=5))
-  return(Y)
-}
 

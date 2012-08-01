@@ -11,8 +11,8 @@
 //function prototype for the function to be called from R
 extern "C" void Clmsearch(float *X, int *rows, int *cols, float *Y, int *ycols, 
 			  int *g, float *aics, float *bics, float *logmargs, 
-			  float *prob, float *otherprob, int *models, int *binids,
-			  int *num_save, int *sorttype );   
+			  double *prob, double *otherprob, int *models, int *binids,
+			  int *num_save, int *sorttype);   
 
 //computes aic
 float aic(int n, int p, float sighat){
@@ -37,6 +37,9 @@ float logmarglike(int n, int k, int g, float Rsq){
     out -= ( ((float)k) / 2) * log(1 + g);
     return(out);
   }
+  
+
+      
 }
 
 //finds the worst largest or smallest in src and output the index and the element
@@ -67,9 +70,9 @@ void arraysort(float *src, int *idx, float *dest, int num_elem, int max){
 
 //performs model search
 void Clmsearch(float *X, int *rows, int *cols, float *Y, int *ycols, int *g, 
-	       float *aics, float *bics, float *logmargs, float *prob, 
-	       float *otherprob, int *models, int *binids, int *num_save, 
-	       int *sorttype ){
+	       float *aics, float *bics, float *logmargs, double *prob, 
+	       double *otherprob, int *models, int *binids, int *num_save, 
+	       int *sorttype){
 
   int p = *cols, k = p - 1, M = 1 << k, n = *rows;
   int id, km, pm, mj;
@@ -85,8 +88,7 @@ void Clmsearch(float *X, int *rows, int *cols, float *Y, int *ycols, int *g,
   int *worstid;
   int bit, binid[k];
   float a, b, lml, maxlml;
-  float totalprob;
-  
+  double totalprob;
 
   rank       = (int *)  malloc(ibytes);
   worstid    = (int *)  malloc(ibytes);
@@ -215,7 +217,7 @@ void Clmsearch(float *X, int *rows, int *cols, float *Y, int *ycols, int *g,
     lml = logmarglike(n, km, *g, Rsq);
 
     if(lml > maxlml){
-      if(id == 1){
+      if(id == 0){
         maxlml = lml;
         totalprob = 1;
       }
@@ -227,7 +229,6 @@ void Clmsearch(float *X, int *rows, int *cols, float *Y, int *ycols, int *g,
     else{
       totalprob += exp(lml - maxlml);
     }
-
 
     //update best set of models information if applicable
     if(*sorttype == 0){
@@ -285,7 +286,6 @@ void Clmsearch(float *X, int *rows, int *cols, float *Y, int *ycols, int *g,
     *otherprob += prob[i];
   }
   *otherprob = 1 - *otherprob;
-
 
   //free memory
   free(Xm);
