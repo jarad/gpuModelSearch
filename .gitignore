@@ -4,7 +4,7 @@
 .DS_Store
 
 # this will NOT untrack .o and .so files that are already tracked (e.g. in Cwrapper and Csmart)
-*.o 
+*.o
 *.so
 
 #these are emacs backup files.
