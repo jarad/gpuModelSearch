@@ -10,7 +10,7 @@
 //function prototype for the function to be called from R
 extern "C" void CSlmsearch(float *X, int *rows, int *cols, float *Y, int *ycols, 
 			   int *g, float *aics, float *bics, float *logmargs, 
-			   float *prob, float *otherprob, int *models, int *binids, 
+			   double *prob, double *otherprob, int *models, int *binids, 
 			   int *num_save, int *sorttype );   
 
 //computes aic
@@ -415,8 +415,8 @@ __host__ void getCREmod(float *dQR, int rows, int cols, int stride, int rank,
 
 //performs model search
 void CSlmsearch(float *X, int *rows, int *cols, float *Y, int *ycols, int *g, 
-		float *aics, float *bics, float *logmargs, float *prob, 
-		float *otherprob, int *models, int *binids, int *num_save, 
+		float *aics, float *bics, float *logmargs, double *prob, 
+		double *otherprob, int *models, int *binids, int *num_save, 
 		int *sorttype ){
 
   int p = *cols, k = p - 1, M = 1 << k, n = *rows;
@@ -432,7 +432,7 @@ void CSlmsearch(float *X, int *rows, int *cols, float *Y, int *ycols, int *g,
   int *worstid;
   int bit, binid[k];
   float a, b, lml, maxlml;
-  float totalprob;
+  double totalprob;
   float *dX, *dXm, *dY;
   const unsigned blockExp = 7; // Gives blockSize = 2^7 = 128.
   int stride = alignBlock(n, blockExp);
@@ -604,7 +604,7 @@ void CSlmsearch(float *X, int *rows, int *cols, float *Y, int *ycols, int *g,
     lml = logmarglike(n, km, *g, Rsq);
 
     if(lml > maxlml){
-      if(id == 1){
+      if(id == 0){
         maxlml = lml;
         totalprob = 1;
       }
