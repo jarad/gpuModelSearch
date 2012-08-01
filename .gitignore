@@ -1,5 +1,14 @@
-# file types to ignore
+
+## file types to ignore
+
 .DS_Store
 
-# directories to ignore
+# this will NOT untrack .o and .so files that are already tracked (e.g. in Cwrapper and Csmart)
+*.o 
+*.so
+
+#these are emacs backup files.
+*~
+
+## directories to ignore
 
