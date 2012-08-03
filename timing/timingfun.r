@@ -16,3 +16,23 @@ genY <- function(n,k,X){
   Y <- X%*%betas + c(rnorm(n, sd=5))
   return(Y)
 }
+
+gpuReset <- function(){
+
+  if( !is.loaded("gpuReset") )
+    dyn.load("devreset.so")
+
+  out <- 0L
+
+  id <- getGpuId()
+
+  z <- .C("gpuReset", out=out)
+
+  if(out == 0)
+    out <- paste(c("GPU", id, "reset successfully"), collapse=" ")
+  else
+    out <- paste(c("GPU", id, "failed to reset"), collapse=" ")
+  
+  return(out)
+}
+
