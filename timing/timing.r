@@ -36,6 +36,7 @@ for(n in ns){
         }
         
         fittime[i,] <- c(n,k,time[1:3], wrap)
+        print(i)
         i <- i + 1
 
         ## reset the gpu here

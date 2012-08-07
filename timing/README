@@ -7,3 +7,16 @@ tex file (in R):
 
 library(knitr) ##install from CRAN using install.packages("knitr") if necessary
 knit("timing.Rnw") ##creates tex file
+
+"make" will create the device reset function and run all of the timings in the background using nohup.	NOTE: THIS MUST BE DONE IN THE SERVER'S SHELL, NOT EMACS ESHELL. 
+
+Timings are currently running. The process id's are:
+
+8736	script process
+8742	R process
+
+To see the status of these processes, in the server's shell:
+
+ps -p 8736 8742
+
+Alternative, open timing.r.Rout. When the timings are completed, the file should have a process time appended at the end.
