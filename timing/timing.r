@@ -17,34 +17,38 @@ i <- 1
 for(n in ns){
   for(k in ks){
     for(wrap in wraps){
-      for(j in 1:N){
+      if(k <= 10 | n <= 100000){
+        for(j in 1:N){
 
-        X <- genX(n,k)
-        Y <- genY(n,k,X)
-
-        ## just to initialize gpu for timing purposes
-        gpuSolve(diag(2))
-      
-        if(wrap == "R"){
-          time <- system.time(test <- gpuRlmsearch(X,Y))
+          X <- genX(n,k)
+          Y <- genY(n,k,X)
+          
+          ## just to initialize gpu for timing purposes
+          gpuSolve(diag(2))
+          
+          if(wrap == "R"){
+            time <- system.time(test <- gpuRlmsearch(X,Y))
+          }
+          else if(wrap == "C"){
+            time <- system.time(test <- gpuClmsearch(X,Y))
+          }
+          else if(wrap == "CS"){
+            time <- system.time(test <- gpuCSlmsearch(X,Y))
+          }
+          
+          fittime[i,] <- c(n,k,time[1:3], wrap)
+          write.csv(fittime, "fittime.csv", row.names=F)
+          
+          print(c(i,n,k,wrap,j))
+          
+          i <- i + 1
+          
+          ## reset the gpu here
+          gpuReset()
         }
-        else if(wrap == "C"){
-          time <- system.time(test <- gpuClmsearch(X,Y))
-        }
-        else if(wrap == "CS"){
-          time <- system.time(test <- gpuCSlmsearch(X,Y))
-        }
-        
-        fittime[i,] <- c(n,k,time[1:3], wrap)
-        print(i)
-        i <- i + 1
-
-        ## reset the gpu here
-        gpuReset()
-        
       }
     }
   }
 }
 
-write.csv(fittime, "fittime.csv", row.names=F)
+
