@@ -1,8 +1,9 @@
 
 ## file types to ignore
 
-.DS_Store
-.Rhistory
+*.DS_Store
+*.Rhistory
+
 # this will NOT untrack .o and .so files that are already tracked (e.g. in Cwrapper and Csmart)
 *.o
 *.so
@@ -12,3 +13,7 @@
 
 ## directories to ignore
 
+## specific files to ignore
+sanitycheck.aux
+sanitycheck.log
+sanitycheck.pdf
