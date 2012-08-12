@@ -1,6 +1,7 @@
 \documentclass{article}
 \usepackage{graphicx, color, amssymb, amsmath, bm, rotating, graphics,
 epsfig, multicol}
+\usepackage{cite}
 \usepackage[sc]{mathpazo}
 \usepackage[T1]{fontenc}
 \usepackage{geometry}
@@ -24,109 +25,383 @@ options(replace.assign=TRUE,width=90)
 @
 
 
-\title{R Wrapper vs. C Wrapper}
+\title{End of Summer Summary}
 
 
 \author{Matt Simpson}
 
 \maketitle
+\date
 
-In order to assess how long it takes to fit all possible sub models
-using either the R or C wrappers, I varied the number of observations
-($n$) and the number of possible covariates ($k$) among a number of
-levels. Table \ref{sam} contains all combinations of factors I sampled
-along with their sample size - 5 in all cases.
+\section{Introduction}
+
+The goal for the summer was to explore using massively parallel
+computation on the GPU in order to speed up model selection
+computation in the linear model. Specifically, to speed up covariate
+selection for regression. An \verb0R0 package for fitting linear
+models using a GPU already exists - \verb0gputools0. I wrote three
+separate functions, based on \verb0gputools0, to fit all possible
+sub-models and tested them with a variety of choices of the number of
+observations and the number of covariates.
+
+\section{Problem Statement}
+Suppose we have a continuous variable, $y$, and a vector of
+covariates, $\bm{x}$, such that we know some elements of $\bm{x}$ are
+related to $y$ but most are not. The problem is to choose a subset of
+$\bm{x}$ which provides the best fit or prediction of $y$ for some
+sense of the word ``best.''
+
+Formally, suppose we have an $n\times1$ response vector, $\bm{y} =
+(y_1,,...,y_n)'$ that is normally distributed with mean $\bm{\mu}
+= (\mu_1,...\mu_n)'$ and covariance $\sigma^2\bm{I}_n$ where
+$\sigma^2$ is the variance parameter and $\bm{I}_n$ is the $n\times n$
+identity matrix. We have a set of $k$ $n\times1$ predictors
+$\bm{x}_1,...\bm{x}_k$ and asssume that the mean vector $\bm{\mu}$ is
+in the span of $\bm{1}_n,\bm{x}_1,...,\bm{x}_k$. The model selection
+problem is to select a subset of predictor variables thereby placing
+additional restrictions on the mean, $\bm{\mu}$. Let the model space
+be indexed by $\bm{\gamma}=(\gamma_1,...,\gamma_k)'$ where
+$\gamma_i=1$ indicates that $\bm{x}_i$ is an included predector
+variable for model $\bm{\gamma}$ and $\gamma_i=0$ indicates that
+$\bm{x}_i$ is an excluded predictor variable. Thus under model
+$\bm{\gamma}$, the mean can be written as
+\[
+\bm{\gamma}: \bm{\mu} = \alpha_{\bm{\gamma}} +
+\bm{X}_{\bm{\gamma}}\bm{\beta}_{\bm{\gamma}}
+\]
+where $\bm{X}_{\bm{\gamma}}$ is the $n\times k_{\bm{\gamma}}$ design
+matrix for model $\bm{\gamma}$ that includes $k_{\bm{\gamma}}$
+$n\times 1$ columns of predictor variables and
+$\bm{\beta}_{\bm{\gamma}}$ is the $k_{\bm{\gamma}}\times1$ vector of
+nonzero coefficients for model $\bm{\gamma}$, while
+$\alpha_{\bm{\gamma}}$ is the intercept for model $\bm{\gamma}$. An
+alternative way of representing each model is
+\[
+\bm{\gamma} : \bm{y} = \alpha_{\bm{\gamma}} +
+\bm{X_\gamma}\bm{\beta_\gamma} + \bm{\epsilon_\gamma}
+\]
+with the errors $\bm{\epsilon_\gamma}$ distributed
+$\mathrm{N}(\bm{0}_n,\sigma^2_{\bm{\gamma}}\bm{I}_n)$.
+
+\subsection{Model Fitting}\label{fit}
+The standard least squares estimate for
+$\bm{\lambda_\gamma}=(\alpha_{\bm{\gamma}},\bm{\beta_\gamma}')'$ is
+$\hat{\bm{\lambda_\gamma}} =
+(\bm{Z_\gamma}'\bm{Z_\gamma})^{-1}\bm{Z_\gamma}'\bm{y}$ where
+$\bm{Z_\gamma}=\left[\bm{1}_n,\bm{X_\gamma}\right]$ while the
+standard estmate for the error variance $\sigma^2_{\bm{\gamma}}$ is
+$\hat{\sigma}^2_{\bm{\gamma}} = \frac{SSE}{n-p_{\bm{\gamma}}}$ where
+$SSE = (\bm{y}-\bm{Z_\gamma}\hat{\bm{\lambda}}_{\bm{\gamma}})'
+(\bm{y}-\bm{Z_\gamma}\hat{\bm{\lambda}}_{\bm{\gamma}})$ and
+$p_{\bm{\gamma}} = k_{\bm{\gamma}} + 1$.
+
+In a Bayesian context, the regression model also requires priors on
+$\alpha_{\bm{\gamma}}$, $\bm{\beta_\gamma}$, and
+$\sigma^2_{\bm{\gamma}}$. The standard noninformative prior for model
+selection is Zellner's g-prior:
+\begin{align*}
+  p(\alpha,\sigma^2|\bm{\gamma})\ &=\ \sigma^2\\
+  \bm{\beta_\gamma}|\sigma^2,\bm{\gamma}\ &\sim\
+  \mathrm{N}\left(g\sigma^2(\bm{X_\gamma}'\bm{X_\gamma})^{-1}\right)
+\end{align*}
+for some choice of $g$ \cite{Liang2008mixtures}. Alternatively, we
+can put a prior on $g$ as Liang et. al. \cite{Liang2008mixtures}
+suggest, but we'll assume a particular value of $g$ has been chosen
+for simplicity. From these priors, the posterior distribution of
+$(\sigma^2_{\bm{\gamma}},\alpha_{\bm{\gamma}},\bm{\beta_\gamma})$ can
+be derived. This distribution, incidentally, depends on
+$\hat{\bm{\lambda}}_{\bm{\gamma}}$ and $\hat{\sigma}^2_{\bm{\gamma}}$.
+
+\subsection{Model Selection}
+
+There are several different methods for choosing the best model or
+subset of models for the mean. Some of these include AIC, BIC, and
+Bayes Factors.
+
+\subsubsection{AIC}
+
+AIC, or Akike's Information Criterion, is a measure of a model's
+fit. For the linear regression model with normal errors, AIC is, up to
+a positive, additive constant
+\[
+AIC(\bm{\gamma}) =
+n\log\left(\hat{\sigma}^2_{\bm{\gamma}}\right) +2(p_{\bm{\gamma}}+1)
+\]
+
+Thus in order to determince AIC for a given regression model, the only
+information needed from the fitting process is the estimated
+variance. Only relative differences in AIC are informative so that no
+particular value of AIC indicates a ``good'' fit, but models with
+smaller AIC have better fit than models with larger AIC.
+
+\subsubsection{BIC}
+
+BIC or the Bayesian information criterion is another measure of a
+model's fit. For the normal error linear regression model, BIC is
+determined up to a positive, additive constant as
+
+\[
+BIC(\bm{\gamma}) =
+n\log\left(\hat{\sigma}^2_{\bm{\gamma}}\right) + (p_{\bm{\gamma}}+1)\log(n)
+\]
+
+Much like AIC, the only information needed from the fitting process to
+determine BIC is the estimate variance. Interpretation of BIC is
+exactly the same as that of AIC -- models with smaller values of BIC
+have a better fit than models with larger values, but the value of BIC
+gives no absolute information about whether any of the class of models
+fits well. BIC tends to be more conservative than AIC, selecting
+models with less covariates.
+
+
+\subsubsection{Bayes Factors}
+
+A fully Bayesian approach to model selection is the Bayes factor. In
+general, the Bayes factor for comparing two models is
+\begin{align*}
+  BF(\bm{\gamma}_1,\bm{\gamma}_1)\ &=\
+  \frac{p(\bm{y}|\bm{\gamma}_1)}{p(\bm{y}|\bm{\gamma}_2)}\\
+\end{align*}
+where $\bm{y}$ is the data, $p(\bm{y}|\bm{\gamma})$ is the marginal
+likelihood, defined as
+\begin{align*}
+  p(\bm{y}|\bm{\gamma})\ &=\ \int
+  p(\bm{y}|\bm{\theta},\bm{\gamma})\pi(\bm{\theta}|\bm{\gamma})d\bm{\theta}
+\end{align*}
+such that $\bm{\theta}$ is the vector of paramters and
+$\pi(\bm{\theta}|\bm{\gamma})$ is the prior on $\bm{\theta}$
+conditional on model $\bm{\gamma}$. The Bayes factor quantifies the
+evidence in favor of model 1 over model 2. $BF=1$ indicates that the
+data doesn't support one model over the other while $BF>1$ means that
+the data favor model 1. Given $M$ possible models and a
+prior $p(\bm{\gamma})$ over all posible models, the posterior
+probability of each model can be calculated as
+\begin{align*}
+  p(\bm{\gamma}|\bm{y}) =
+  \frac{p(\bm{\gamma})p(\bm{y}|\bm{\gamma})}{\sum_{\bm{\gamma}}
+    p(\bm{\gamma})p(\bm{y}|\bm{\gamma})}
+\end{align*}
+The posterior odds in favor of model 1 over model 2,
+$\frac{p(\bm{\gamma}_1|\bm{y})}{p(\bm{\gamma}_2|\bm{y})}$ can be
+written as
+\[
+posterior\ odds\ =\ Bayes\ factor\ \times\ prior\ odds
+\]
+and similarly posterior model probabilities can be calculated from
+Bayes factors, given some base model $\bm{b}$:
+\begin{align*}
+  p(\bm{\gamma}|\bm{y})=\frac{p(\bm{\gamma})BF(\bm{\gamma},\bm{b})}
+  {\sum_{\bm{\gamma}}p(\bm{\gamma})BF(\bm{\gamma},\bm{b})}
+\end{align*}
+
+Key in these computations is the marginal likelihood,
+$p(\bm{y}|\bm{\gamma})$. It turns out that given Zellner's g-prior and
+a chosen value for $g$, the marginal likelihood for the regression
+model can be derived analytically as \cite{Liang2008mixtures}
+\begin{align*}
+  p(\bm{y}|\bm{\gamma},g)\ &=\
+  \frac{\Gamma\left(\frac{n-1}{2}\right)}
+  {\sqrt{\pi}^{(n-1)}\sqrt{n}}||\bm{y}-\bar{\bm{y}}||^{-(n-1)}
+  \frac{(1+g)^{(n-1-k_{\bm{\gamma}})/2}}{[1+g(1-R^2_{\bm{\gamma}})]^{(n-1)/2}}\\
+  &\propto \frac{(1+g)^{(n-1-k_{\bm{\gamma}})/2}}{[1+g(1-R^2_{\bm{\gamma}})]^{(n-1)/2}}\\
+\end{align*}
+where $R^2_{\bm{\gamma}}$ is the ordinary coefficient of
+determination, i.e.
+\begin{align*}
+  R^2_{\bm{\gamma}}\ &=\ 1-\frac{SSE}{SST}
+\end{align*}
+where $SSE$ is defined above in section \ref{fit} and $SST = (\bm{y}
+-\bar{\bm{y}})'(\bm{y} -\bar{\bm{y}})$. Note that in covariate
+selection context, the null model which only has an intercept has
+$R^2_{\bm{\gamma}}=0$ and $k_{\bm{\gamma}}=0$. Also note that the
+marginal likelihood only needs to be known up to a multiplicative
+constant common to all models in order to determine Bayes factors
+since the Bayes factor is a ratio of marginal likelihoods.
+
+\subsection{Computation}
+
+The problem, then, is computation. Given $k$ possible covariates,
+there are $M=2^k$ possible regression models. As $k$ grows, the model
+space quickly becomes too large to enumerate and fit all possible
+regression models in a reasonable amount of time. One strategy for
+dealing with this computational problem is using a gpu to fit models
+simultaneously rather than sequentially on a cpu. This should
+dramatically reduce computation time and thus allow for larger numbers
+of covarates to be considered in the model selection procedure.
+
+A middle step between fitting all models sequentially on a cpu and
+fitting them simultaneously on a gpu is fitting them sequentially on a
+gpu. That is, using a gpu to perform the linear algebra operations
+necessary to fit a regression model, but fitting each model one at a
+time. GPUs are uniquely adept at linear algebra operations, especially
+matrix operations, so this method should result in a significant
+speedup. An \verb0R0 package already exists for fitting regression
+models on a GPU: \verb0gputools0. Most of my functions are based on
+\verb0gputools0 in some way.
+
+\section{Functions for Model Selection}
+
+I created three separate functions for performing model selection
+using a GPU: the \verb0R0 wrapper, the \verb0C0 wrapper, and the smart
+\verb0C0 wrapper. Each of these functions is based on \verb0gputools0
+in some way and as such are considered ``wrappers'' for
+\verb0gputools0 functions, even if those functions end up being
+somewhat modified.
+
+\subsection{R Wrapper}
+
+The \verb0R0 wrapper is written entirely in \verb0R0. It takes a
+response vector $\bm{y}$ and a full model matrix $\bm{X}$ that
+includes a column of 1's for the intercept, finds all possible
+model matrices by including different columns of $\bm{X}$, then fits
+these models sequentially by calling the \verb0gputools0 function
+\verb0gpuLm.fit0 on $\bm{y}$ and the model matrix $\bm{X_\gamma}$. The
+output is information on the top 1000 models, including AIC, BIC, log
+marginal likelihood, the posterior model probability (assuming a
+uniform prior over the model space), and the total posterior
+probability assigned to model {\it not} included in this list.
+
+\subsection{C Wrapper}
+
+The \verb0C0 wrapper is essentially the same thing as the \verb0R0
+wrapper, except all operations are written in \verb0C0. More
+precisely, the \verb0C0 wrapper has an \verb0R0 function that takes a
+response vector $\bm{y}$ and a full model matrix, including a column
+of ones, $\bm{X}$, and passes it to \verb0C0. Then, a set of \verb0C0
+function pull out submatrices to fit all possible models using the
+\verb0gputools0 \verb0C0 function \verb0gpuLSFitF0. The output is
+identical to that of the \verb0R0 wrapper.
+
+\subsection{Smart C Wrapper}
+
+Also known as the ``\verb0C0 smart'' wrapper, this function uses
+modified \verb0C0 code from the \verb0gputools0 package. More
+precisely, it does the same thing as the \verb0C0 wrapper except
+instead of calling \verb0gputools0 functions, it calls modified forms
+of these functions that allocate memory to the GPU in a more
+intelligent fashion. Instead of reallocating memory for a model matrix
+and several other necessary variables for every model, memory is
+allocated once before the first model is fit and the full model matrix
+is copied to the GPU. Then the current model matrix is copied from the
+full matrix in a GPU-to-GPU transfer at every iteration. Several
+quantities used in many or all of the models are also precomputed and
+copied to the GPU so that every model has access to them during the
+fitting process without having to relying on slow memory transfers
+from RAM to the GPU.
+
+\section{Timing the Functions}
+
+At the outset, we expect the \verb0C0 wrapper to be slightly faster
+than the \verb0R0 wrapper and the \verb0C0 smart wrapper to be
+significantly faster than both of the other wrappers. In order to
+assess how fast these functions actually are, we created full model
+matrices of various sizes along with response vectors by varying the
+number of observations $n$ and the number of possible covariates
+$k$. These functions were fit on GPU 2 (with 0-based indexing) of the
+impact1 linux server at Iowa State University. This GPU is an NVIDIA
+Tesla M2070 with 5375 MB of memory and 448 CUDA Cores running CUDA
+driver and runtime version 4.1. Table \ref{sam} shows all of choices
+of $n$ and $k$ timed for each wrapper and the number of times that
+combination was timed.
 
 <<sample-size, results=tex, echo=F>>=
 library(ggplot2)
 library(xtable)
-rtime <- read.csv("rfittime.csv")
-ctime <- read.csv("cfittime.csv")
-ratdata <- rtime
-rtime$wrap <- "R"
-ctime$wrap <- "C"
-data <- rbind(rtime, ctime)
-
-ratdata[,3:5] <- rtime[,3:5] / ctime[,3:5]
-colnames(ratdata)[3:5] <- c("usrratio", "sysratio", "elapsratio")
-
-
-leng <- aggregate(data[,3], list(n=data$n,k=data$k,wrap=data$wrap), "length")
-colnames(leng)[4] <- "sample.size"
+data <- read.csv("fittime.csv")
+leng <- aggregate(data[data$wrap=="C",3], list(n=data$n[data$wrap=="C"],k=data$k[data$wrap=="C"]), "length") #$
+colnames(leng)[3] <- "sam.size"
 leng$n <- as.integer(leng$n)
-xtable(leng, caption="Sample sizes of various combinations of factors, including number of observations (n), number of possible covariates (k), and which wrapper was used (wrap)", label="sam")
+xtable(leng, caption="Sample sizes of various combinations of factors, including number of observations (n) and number of possible covariates (k). Each wrapper had the given sample size for each combination of factors", label="sam")
 @
 
-\begin{figure}
+First we plot the time to fit all possible models by sample size
+$n$ in figure \ref{k10}, with the number of covariates ($k$)
+held constant at 10. As expected, time to fit increases as the sample
+size increases. All functions were timed using the \verb0R0 function
+\verb0sytem.time0 and the value \verb0elapstime0. For the entire
+domain, it appears \verb0C0 wrapper fits all possible models slightly
+faster than the \verb0R0 wrapper. The smart \verb0C0 wrapper appears
+to be significantly faster than both of the other two wrappers and the
+difference in speed appears to increase as the number of observations,
+$n$, increases.
+
+\begin{figure}[ht]
   \centering
 <<k10, fig.width=4, fig.height=4, out.width='.7\\textwidth', echo=F>>=
 mns <- aggregate(data[,3:5], list(n=data$n,k=data$k,wrap=data$wrap), "mean")
 qplot(data=mns[mns$k==10,],x=n, y=elapstime, color=wrap, geom="line", log="x")
 @
-\caption{Time to fit (in seconds) vs. $n$ (log scale) by wrapper type.}
+\caption{Time to fit (in seconds) vs. $n$ (log scale) by wrapper
+  type.''R'' denotes the R wrapper, ``C'' denotes the C
+  wrapper, and ``CS'' denotes the smart C wrapper.}
 \label{k10}
 \end{figure}
 
-First we plot the time to fit all possible models by sample size
-$n$ in figure \ref{k10}, with the number of covariates ($k$)
-held constant at 10. As expected, time to fit increases as the sample
-size increases. For the entire domain, it appears C wrapper fits all
-possible models slightly faster, though it's hard to tell at some
-values of $n$. Plotting the ratio of R wrapper fit time to C wrapper fit
-time reveals a bit more in figure \ref{k10rat}. For sample sizes
-of 100 and 1000, the C wrapper is about
-\Sexpr{round(ratmns[ratmns$k==10 & ratmns$n==100, 5],2)} times faster
-than the R wrapper. This ratio steadily increases to nearly
-\Sexpr{round(ratmns[ratmns$k==10 & ratmns$n==10000, 5],2)} times
-faster at $n=10,000$ before falling to roughly
-\Sexpr{round(ratmns[ratmns$k==10 & ratmns$n==500000, 5],2)} times
-faster at $n=50,000$ and then increasing slowly to about
-\Sexpr{round(ratmns[ratmns$k==10 & ratmns$n==2000000,5],2)} times
-faster at $n=2,000,000$.
+Plotting the ratios of times to fit in figure \ref{k10rat} adds more
+information to the story. The \verb0C0 wrapper is only slightly faster
+than the \verb0R0 wrapper over the range of $n$ sampled. By
+$n=2000000$, there is essentially no difference in fit time. The smart
+wrapper, however, is increasingly faster than the other wrappers as
+$n$ increases. At $n=10000$, the smart wrapper is roughly 3 times
+faster than the \verb0C0 wrapper and 4.5 times faster than the
+\verb0R0 wrapper. At $n=1000000$, the smart wrapper is about 7.5 times
+faster than both the \verb0C0 and \verb0R0 wrappers. The ratio appears
+to stabilizes at this point with similar numbers at $n=2000000$, but
+we don't have data for larger $n$.
 
-\begin{figure}
+\begin{figure}[ht]
   \centering
 <<k10rat, fig.width=4, fig.height=4, out.width='.7\\textwidth', echo=F>>=
-ratmns <- aggregate(ratdata[,3:5], list(n=ratdata$n,k=ratdata$k), "mean")
-qplot(data=ratmns[ratmns$k==10,],x=n, y=elapsratio, geom="line", log="x")
+rdat <- data[data$wrap=="R",-6]
+cdat <- data[data$wrap=="C",-6]
+csdat <- data[data$wrap=="CS",-6]
+rcratio <- rdat
+rcratio[,3:5] <- rdat[,3:5] / cdat[,3:5]
+rcsratio <- rdat
+rcsratio[,3:5] <- rdat[,3:5] / csdat[,3:5]
+ccsratio <- cdat
+ccsratio[,3:5] <- cdat[,3:5] / csdat[,3:5]
+
+rcratmns <- aggregate(rcratio[,3:5], list(n=rcratio$n,k=rcratio$k), "mean")
+rcsratmns <- aggregate(rcsratio[,3:5], list(n=rcsratio$n,k=rcsratio$k), "mean")
+ccsratmns <- aggregate(ccsratio[,3:5], list(n=ccsratio$n,k=ccsratio$k), "mean")
+
+colnames(rcratmns)[3:5] <- paste(c("usr","sys","elaps"), "ratio", sep="")
+colnames(rcsratmns)[3:5] <- paste(c("usr","sys","elaps"), "ratio", sep="")
+colnames(ccsratmns)[3:5] <- paste(c("usr","sys","elaps"), "ratio", sep="")
+
+rcratmns$ratio <- "R / C"
+rcsratmns$ratio <- "R / CS"
+ccsratmns$ratio <- "C / CS"
+
+ratmns <- rbind(rcratmns, rcsratmns, ccsratmns)
+
+qplot(data=ratmns[ratmns$k==10,],x=n, y=elapsratio, color=ratio, geom="line", log="x", ylim=c(1,8))
 @
-\caption{Ratio of R wrapper time to fit over C wrapper time to fit
-  vs. n (log scale) for $k=10$.}
+\caption{Ratio of wrapper fit times vs. n (log scale) for
+  $k=10$. Ratios are calculated as, e.g. for "R / C",  mean(fit time
+  for R wrapper / fit  time for C wrapper).}
 \label{k10rat}
 \end{figure}
 
 
-The data for $k=5$ tell a different story in figure \ref{k5}: the C
-wrapper is slightly faster than the R wrapper at small sample sizes,
-but as $n$ increases the R wrapper eventually becomes faster. The
-difference is small though; the larger disparity
-is between the fit times of all possible sub models with $k=5$ and
-$k=10$ - a difference of over an order of magnitude. Figure
-\ref{k5rat} shows the same phenomenon in terms of ratios. The C
-wrapper starts out only about \Sexpr{round(ratmns[ratmns$k==5 &
-  ratmns$n==100, 5],2)} times faster than the R wrapper at $n=100$,
-but increases to \Sexpr{round(ratmns[ratmns$k==5 & ratmns$n==10000, 5],2)} times
-faster at $n=10,000$. Eventually, the speed of the C wrapper falls to
-\Sexpr{round(ratmns[ratmns$k==5 & ratmns$n==2000000, 5],2)} times as
-fast as the R wrapper at $n=2,000,000$. So for large $n$, it appears
-that the R wrapper outperforms the C wrapper.
+The data for $k=5$ tell a different story in figure \ref{k5}: the
+\verb0C0 wrapper is slightly faster than the \verb0R0 wrapper at small
+sample sizes, but as $n$ increases the R wrapper eventually becomes
+faster. The difference is small though; the larger disparity is once
+again between smart wrapper and both the \verb0C0 and \verb0R0
+wrappers. The smart wrapper appears significantly faster, especially
+as $n$ increases. Figure \ref{k5rat} shows the same phenomenon in terms of
+ratios. The \verb0R0 and \verb0C0 wrappers are roughly as fast as each
+other with the \verb0C0 wrapper faster over most of the domain though
+for very large $n$, the \verb0C0 wrapper is actually {\it slower} than
+the \verb0R0 wrapper, which is surprising. The trajectory of the
+relative speed of the smart wrapper is similar in this case to
+$k=10$ --- the smart wrapper is roughly 3--4 times faster than the
+other two wrappers at $n=10000$ and roughly 7 times faster at
+$n=1000000$ and $n=2000000$.
 
-
-Figure \ref{n100} tells the story we expect when $n$ is held constant
-at 100 and k increase. The Cwrapper once again is slightly faster than
-the Rwrapper. The ratios show in figure \ref{n100rat} that the C
-wrapper is roughly
-\Sexpr{round(ratmns[ratmns$k==5 & ratmns$n==100, 5],2)} times faster
-than the R wrapper wheb $k=5$, but this decreases to about
-\Sexpr{round(ratmns[ratmns$k==13 & ratmns$n==100, 5],2)} times faster
-when $k=13$. This decrease may continue as k gets large so that the R
-wrapper actually becomes faster, but due to a suspected bug in the
-gputools code the gpu will stop responding before it can fit all
-possible models when $k$ is larger than 13 - making it impossible to get
-even a single sample. As a result, we can only guess that the trend
-continues beyond $k=13$.
-
-\begin{figure}
+\begin{figure}[ht]
   \centering
 <<k5, fig.width=4, fig.height=4, out.width='.7\\textwidth', echo=F>>=
 qplot(data=mns[mns$k==5,],x=n, y=elapstime, color=wrap, geom="line", log="x")
@@ -136,15 +411,31 @@ qplot(data=mns[mns$k==5,],x=n, y=elapstime, color=wrap, geom="line", log="x")
 \label{k5}
 \end{figure}
 
-\begin{figure}
+\begin{figure}[ht]
   \centering
 <<k5rat, fig.width=4, fig.height=4, out.width='.7\\textwidth', echo=F>>=
-qplot(data=ratmns[ratmns$k==5,],x=n, y=elapsratio, geom="line", log="x")
+qplot(data=ratmns[ratmns$k==5,],x=n, y=elapsratio, color=ratio, geom="line", log="x", ylim=c(0,8))
 @
-\caption{Ratio of R wrapper time to fit over C wrapper time to fit
-  vs. $n$ (log scale) for $k=5$.}
+\caption{Ratio wrapper fit times vs. $n$ (log scale) for $k=5$.}
 \label{k5rat}
 \end{figure}
+
+Figure \ref{n100} tells the story we expect when $n$ is held constant
+at 100 and $k$ increases. The \verb0C0 wrapper once again is slightly
+faster than the \verb0R0 wrapper while the smart wrapper is faster
+than both, though not nearly as significantly so in the range of $k$
+sampled. The ratios show in figure \ref{n100rat} that the \verb0C0
+wrapper is roughly 1.1--1.2 times faster than the \verb0R0 wrapper,
+decreasing as $k$ increases. The plot suggests --- but does not show
+--- that as $k$ gets large, the \verb0R0 wrapper may be faster than
+the \verb0C0 wrapper. Due to a suspected bug in the CUDA API the gpu
+will stop responding before it can fit all possible models in the
+\verb0C0 and \verb0R0 wrappers when $k$ is larger than 13 - making it
+impossible to get even a single sample. As a result, we can only guess
+that the trend continues beyond $k=13$. The smart wrapper isn't much
+faster than the other two wrappers - rough 1.5 times faster than the
+\verb0C0 wrapper and 1.7 times faster than the \verb0R0 wrapper,
+decreasing as $k$ increases.
 
 \begin{figure}
   \centering
@@ -152,31 +443,239 @@ qplot(data=ratmns[ratmns$k==5,],x=n, y=elapsratio, geom="line", log="x")
 qplot(data=mns[mns$n==100,],x=k, y=elapstime, color=wrap, geom="line")
 @
 \caption{Time to fit (in seconds) vs. $k$ by wrapper type,
-  $n=100$. Note that due to a suspected bug in gputools, k must be
-  kept small.}
+  $n=100$. Note that due to a bug in the CUDA API, $k$ must be kept
+  small for all wrappers except the smart wrapper.}
 \label{n100}
 \end{figure}
 
 \begin{figure}
   \centering
 <<n100rat, fig.width=4, fig.height=4, out.width='.7\\textwidth', echo=F>>=
-qplot(data=ratmns[ratmns$n==100,],x=k, y=elapsratio, geom="line")
+qplot(data=ratmns[ratmns$n==100,],x=k, y=elapsratio, color=ratio, geom="line", ylim=c(1,2))
 @
-\caption{Ratio of R wrapper time to fit over C wrapper time to fit
-  vs. $k$ for $n=100$.}
+\caption{Ratio wrapper fit times vs. $k$ for $n=100$.}
 \label{n100rat}
 \end{figure}
 
-So for large $n$ it appears that the R wrapper is faster than the C
-wrapper and for large $k$ these results suggest --- but do not show
---- that the R wrapper is faster. It's surprising that the R wrapper
-is outperforming the C wrapper in any of the cases examined above. A
-priori, there are several areas where we might expect the C wrapper to
-speed up computation relative to the R wrapper. First, the R wrapper
-has to deal with the overhead of repeatedly copying matrices from R
-into C while the C wrapper only has to do this once. Second,
-operations on the full model matrix to extract the appropriate
-sub-matrix should run faster in R. The source of the R wrapper's
-relative speed is unclear.
+So there isn't much difference between the \verb0R0 and \verb0C0
+wrappers while the smart wrapper appears to be significantly faster,
+especially for large $n$.
+
+\section{Further Work}
+
+\subsection{Iterative Simple Linear Regression}
+
+One idea to avoid doing matrix arithmetic in the model selection
+algorithm, suggested by Dan Nettleton, is to avoid computing the
+coefficient estimates altoether. In order to do this, we first fit all
+simple linear regression models. Then to fit regression models with
+two variables included, we find one of the SLR models with only one of
+the two desired covariate then regress that model's residuals on the
+new covariate, yielding the residuals of the larger model. In this
+fashion, we can start from the smallest possible models and
+iteratively obtain the residuals of every possible model using only
+simple linear regressions - i.e. avoiding all matrix
+calculations. This procedure doesn't seem to work, as I understand
+it. The \verb0R0 file in this directory, \verb0sanitycheck.r0,
+provides a counterexample. The next section fleshes out how I
+understand the process is supposed to work and the following section
+is a bit of theory showing that it shouldn't work.
+
+\subsubsection{The Iterative SLR Process}
+
+Suppose we want to obtain the residuals from a full regression model
+\begin{align}\label{full}
+\bm{y} = \bm{X}\bm{\beta} + \bm{\epsilon}
+\end{align}
+without actually fitting the model. Break up $\bm{X}$ and $\bm{\beta}$
+into
+\[
+\bm{X} = \begin{bmatrix} \bm{X_1}, & \bm{X_2} \\\end{bmatrix}
+\ and\
+\bm{\beta} = \begin{bmatrix} \bm{\beta_1} \\ \bm{\beta_2} \end{bmatrix}
+\]
+so that
+\[
+\bm{y} = \bm{X_1}\bm{\beta_1} + \bm{X_2}\bm{\beta_2} + \bm{\epsilon}
+\]
+Rearranging yields
+\begin{align}\label{full2}
+\bm{y} - \bm{X_1}\bm{\beta_1} = \bm{X_2}\bm{\beta_2} + \bm{\epsilon}
+\end{align}
+Note that the left hand side is just the residual from the model
+\begin{align}\label{red}
+\bm{y} = \bm{X_1}\bm{\beta_1} + \bm{\delta}
+\end{align}
+so that we can rewrite \eqref{full2} as
+\begin{align}\label{red2}
+\bm{\delta} = \bm{X_2}\bm{\beta_2} + \bm{\epsilon}
+\end{align}
+Thus, the argument goes, if we first fit model \eqref{red} then fit
+model \eqref{red2} using the residuals from \eqref{red}, we can obtain
+the residuals to the full model \eqref{full}. As long as $\bm{X_2}$ is
+a single column, then we only ever have to fit simple linear
+regression models and most of those without an intercept.
+
+\subsubsection{Residual Relationship}
+The example in \verb0sanitycheck.r0 already shows that this basic
+process doesn't work as expected, but I'll show why here. First, some
+preliminaries. Suppose we have the following regression model
+\[
+\bm{y} = \bm{X}\bm{\beta} + \bm{\epsilon}
+\]
+The least squares estimate for $\bm{\beta}$ is
+\[
+\bm{\hat{\beta}} = \left(\bm{X}'\bm{X}\right)^{-1}\bm{X}'\bm{y}
+\]
+which yields the estimated residuals
+\[
+\bm{\hat{\epsilon}} = \bm{y} - \bm{\hat{y}} = \bm{y} -
+\bm{X}\bm{\hat{\beta}} = \bm{y} -
+\bm{X}\left(\bm{X}'\bm{X}\right)^{-1}\bm{X}'\bm{y} = \bm{y} -
+\bm{P_X}\bm{y} = \left(\bm{I} - \bm{P_X}\right)\bm{y}
+\]
+where $\bm{P_X} = \bm{X}\left(\bm{X}'\bm{X}\right)^{-1}\bm{X}'$ is the
+projection matrix into the column space of $\bm{X}$.
+
+So the estimated residuals for model \eqref{full} -- the full model -- are
+\[
+\bm{\hat{\epsilon}} = (\bm{I} - \bm{P_X})\bm{y}
+\]
+the estimated residuals for model \eqref{red} -- the
+reduced model -- are
+\[
+\bm{\hat{\delta}} = (\bm{I} - \bm{P_{X_1}})\bm{y}
+\]
+and the estimated residuals for model \eqref{red2} -- the residual
+model -- are
+\[
+\bm{\hat{\eta}} = (\bm{I} - \bm{P_{X_2}})\bm{\hat{\delta}} = (\bm{I} -
+\bm{P_{X_2}})(\bm{I} - \bm{P_{X_1}})\bm{y}
+\]
+
+In order for the process outlined in section 2 to work, we need
+$\bm{\hat{\epsilon}} = \bm{\hat{\eta}}$, or
+\[
+(\bm{I} - \bm{P_X})\bm{y} = (\bm{I} - \bm{P_{X_2}})(\bm{I} - \bm{P_{X_1}})\bm{y}
+\]
+where $\bm{X} = \begin{bmatrix} \bm{X_1}, &
+  \bm{X_2} \end{bmatrix}$. We could still salvage the idea if
+$\bm{\hat{\epsilon}} = f(\bm{\hat{\eta}})$ or $\bm{\hat{\epsilon}} =
+f(\bm{\hat{\delta}})$ where $f$ is some easily computable function.
+
+I'll show that $\bm{\hat{\epsilon}} = f(\bm{\hat{\delta}},
+\bm{P_{X_1}})$, that is the residuals of the full model is a function
+of the residuals of the reduced model {\it and} the projection
+matrix of the reduced model. This function won't be useful to us
+because we still have to fit the reduced model at every step in order
+to obtain the projection matrix of the reduced models and thus the
+residuals of the next larger model. I won't show that there isn't a
+function mapping the residuals of the reduced model onto the residuals
+of the full model that doesn't depend on $\bm{P_{X_1}}$, but the
+function I do derive suggests that such a function doesn't exist.
+
+Start with the full model with the model matrix split up
+\[
+\bm{y} = \begin{bmatrix} \bm{X_1}, &
+  \bm{X_2} \end{bmatrix} \begin{bmatrix} \bm{\beta_1} \\
+  \bm{\beta_2} \end{bmatrix} + \bm{\epsilon}
+\]
+The we can rewrite $\bm{\hat{\beta}}$ as
+\begin{align}\label{betahat}
+\bm{\hat{\beta}} = \left(\begin{bmatrix} \bm{X_1}' \\
+    \bm{X_2}' \end{bmatrix} \begin{bmatrix}
+  \bm{X_1}, & \bm{X_2} \end{bmatrix} \right)^{-1} \begin{bmatrix}
+\bm{X_1}' \\ \bm{X_2}' \end{bmatrix}\bm{y}
+= \begin{bmatrix} \bm{X_1}'\bm{X_1} & \bm{X_1}'\bm{X_2} \\
+  \bm{X_2}'\bm{X_1} & \bm{X_2}'\bm{X_2} \end{bmatrix}^{-1}
+\begin{bmatrix} \bm{X_1}'\bm{y} \\ \bm{X_2}'\bm{y} \end{bmatrix}
+\end{align}
+
+We can find the inverse in \eqref{betahat} using the following known formula:
+\[
+\begin{bmatrix} \bm{A} & \bm{B} \\ \bm{C} & \bm{D} \end{bmatrix} ^{-1} =
+\begin{bmatrix} \bm{A}^{-1} + \bm{A}^{-1}\bm{B}\bm{S}\bm{C}\bm{A}_{-1}
+  & -\bm{A}^{-1}\bm{B}\bm{S} \\
+  -\bm{S}\bm{C}\bm{A}^{-1} & \bm{S} \end{bmatrix}
+\]
+where $\bm{S} = (\bm{D} - \bm{C}\bm{A}^{-1}\bm{B})^{-1}$ is the
+inverse Schur complement of $\bm{A}$. In this case
+\[
+\bm{S} = \left(\bm{X_2}'\bm{X_2} -
+  \bm{X_2}'\bm{X_1}(\bm{X_1}'\bm{X_1})^{-1}\bm{X_1}'\bm{X_2}\right)^{-1}
+= (\bm{X_2}'\bm{X_2} - \bm{X_2}'\bm{P_{X_1}}\bm{X_2})^{-1} =
+\left[\bm{X_2}'(\bm{I} - \bm{P_{X_1}})\bm{X_2}\right]^{-1}
+\]
+and
+\begin{align*}
+\bm{\hat{\beta}} &= \widehat{\begin{bmatrix} \bm{\beta_1} \\
+    \bm{\beta_2} \end{bmatrix}} =
+\begin{bmatrix} (\bm{X_1}'\bm{X_1})^{-1} +
+  (\bm{X_1}'\bm{X_1})^{-1}\bm{X_1}'\bm{X_2} \bm{S}
+  \bm{X_2}'\bm{X_1}(\bm{X_1}'\bm{X_1})^{-1} &
+  -(\bm{X_1}'\bm{X_1})^{-1}\bm{X_1}'\bm{X_2}\bm{S} \\
+  -\bm{S}\bm{X_2}'\bm{X_1}(\bm{X_1}'\bm{X_1})^{-1} &
+  \bm{S} \end{bmatrix}
+\begin{bmatrix} \bm{X_1}'\bm{y}\\ \bm{X_2}'\bm{y}\end{bmatrix} \\
+&= \begin{bmatrix} (\bm{X_1}'\bm{X_1})^{-1}\bm{X_1}\bm{y} +
+  (\bm{X_1}'\bm{X_1})^{-1}\bm{X_1}'\bm{X_2}\bm{S}\bm{X_2}'\bm{P_{X_1}}\bm{y}
+  - (\bm{X_1}'\bm{X_1})^{-1}\bm{X_1}'\bm{X_2}\bm{S}\bm{X_2}'\bm{y} \\
+  -\bm{S}\bm{X_2}'\bm{P_{X_1}}\bm{y} +
+    \bm{S}\bm{X_2}'\bm{y} \end{bmatrix}\\
+&=\begin{bmatrix} (\bm{X_1}'\bm{X_1})^{-1}\bm{X_1}'\bm{y} -
+  (\bm{X_1}'\bm{X_1})^{-1}\bm{X_1}'\bm{X_2}\bm{S}\bm{X_2}'\bm{\hat{\delta}}\\
+  \bm{S}\bm{X_2}'\bm{\hat{\delta}} \end{bmatrix}
+\end{align*}
+This yields
+\begin{align*}
+\bm{\hat{y}} &= \bm{X}\bm{\hat{\beta}} = \begin{bmatrix} \bm{X_1} &
+  \bm{X_2} \end{bmatrix} \bm{\hat{\beta}} = \bm{P_{X_1}}\bm{y} -
+\bm{P_{X_1}}\bm{X_2}\bm{S}\bm{X_2}'\bm{\hat{\delta}} +
+\bm{X_2}\bm{S}\bm{X_2}'\bm{\hat{\delta}} \\
+&= \bm{P_{X_1}}\bm{y} +
+(\bm{I}-\bm{P_{X_1}})\bm{X_2}\bm{S}\bm{X_2}'\bm{\hat{\delta}}
+\end{align*}
+So
+\begin{align*}
+\bm{\hat{\epsilon}} &= \bm{y}-\bm{\hat{y}} = \bm{\hat{\delta}} -
+(\bm{I}-\bm{P_{X_1}})\bm{X_2}\left[\bm{X_2}'(\bm{I}-\bm{P_{X_1}})
+  \bm{X_2}\right]^{-1}\bm{\hat{\delta}}
+\end{align*}
+
+To restate the result just show, let the full regression model be of
+the form
+\[
+\bm{y} = \bm{X}\bm{\beta} + \bm{\epsilon}
+\]
+where $\bm{X} = \begin{bmatrix} \bm{X_1} &
+  \bm{X_2} \end{bmatrix}$. Then let the reduced model be of the form
+\[
+\bm{y} = \bm{X_1}\bm{\beta_1} + \bm{\delta}
+\]
+Then the estimated residuals of the full model are related to the
+estimated residuals of the reduced model in the following manner:
+\[
+\bm{\hat{\epsilon}} = \bm{\hat{\delta}} -
+(\bm{I}-\bm{P_{X_1}})\bm{X_2}\left[\bm{X_2}'(\bm{I}-\bm{P_{X_1}})
+  \bm{X_2}\right]^{-1}\bm{\hat{\delta}}
+\]
+So $\bm{\hat{\epsilon}}$ still depends on the projection matrix of the
+reduced model, $\bm{P_{X_1}}$. This still may be useful, however, if
+the equation can be manipulated so that the projection matrices can be
+turned into the reduced model residuals. Note, however, that if the
+equation still requires matrix multiplication even when $\bm{X_2}$ is
+a single column, this method may not yield any gains. At the moment,
+nothing seems possible. Note that $\bm{y}\bm{y}'$ is not invertible,
+so simply inserting $\bm{y}\bm{y}'(\bm{y}\bm{y}')^{-1}$ into the
+equation strategically will not work.
+
+\subsection{Model Per Block}
+
+\subsection{Model Per Thread}
+
+\subsection{Hybrid}
+
+\bibliography{gpubib}
+\bibliographystyle{asa}
 
 \end{document}

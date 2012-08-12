@@ -8,15 +8,8 @@ tex file (in R):
 library(knitr) ##install from CRAN using install.packages("knitr") if necessary
 knit("timing.Rnw") ##creates tex file
 
-"make" will create the device reset function and run all of the timings in the background using nohup.	NOTE: THIS MUST BE DONE IN THE SERVER'S SHELL, NOT EMACS ESHELL. 
+In order to compile the resulting timing.tex, the bibtex file gpubib.bib is required.
 
-Timings are currently running. The process id's are:
+"make" will create the device reset function and run all of the timings in the background using nohup.	NOTE: THIS MUST BE DONE IN THE SERVER'S SHELL, NOT EMACS ESHELL.
 
-19625	script process
-19630	R process
-
-To see the status of these processes, in the server's shell:
-
-ps -p 19625 19630
-
-Alternative, open timing.r.Rout. When the timings are completed, the file should have a process time appended at the end.
+Timings finished!!
