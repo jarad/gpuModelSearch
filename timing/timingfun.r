@@ -1,6 +1,7 @@
 source("~/gpuModelSearch/Rwrapper/rlmsearch.r")
 source("~/gpuModelSearch/Cwrapper/clmsearch.r")
 source("~/gpuModelSearch/Csmart/cslmsearch.r")
+source("~/gpuModelSearch/LMwrapper/lmsearch.r")
 
 
 ##generate a model matrix
