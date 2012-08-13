@@ -275,8 +275,8 @@ identical to that of the \verb0R0 wrapper.
 
 \subsection{Smart C Wrapper}
 
-Also known as the ``\verb0C0 smart'' wrapper, this function uses
-modified \verb0C0 code from the \verb0gputools0 package. More
+Also known as the ``\verb0C0 smart'' or the smart wrapper, this function uses
+modified CUDA \verb0C0 code from the \verb0gputools0 package. More
 precisely, it does the same thing as the \verb0C0 wrapper except
 instead of calling \verb0gputools0 functions, it calls modified forms
 of these functions that allocate memory to the GPU in a more
@@ -471,18 +471,35 @@ algorithm, suggested by Dan Nettleton, is to avoid computing the
 coefficient estimates altoether. In order to do this, we first fit all
 simple linear regression models. Then to fit regression models with
 two variables included, we find one of the SLR models with only one of
-the two desired covariate then regress that model's residuals on the
-new covariate, yielding the residuals of the larger model. In this
-fashion, we can start from the smallest possible models and
-iteratively obtain the residuals of every possible model using only
-simple linear regressions - i.e. avoiding all matrix
-calculations. This procedure doesn't seem to work, as I understand
-it. The \verb0R0 file in this directory, \verb0sanitycheck.r0,
-provides a counterexample. The next section fleshes out how I
-understand the process is supposed to work and the following section
-is a bit of theory showing that it shouldn't work.
+the two desired covariate then regress the new variable on the old
+variable. Then we regress the residuals of the original regression
+model on the residuals of the new covariate regression model, yielding
+the residuals of the larger model. In this fashion, we can start from
+the smallest possible models and iteratively obtain the residuals of
+every possible model using only simple linear regressions -
+i.e. avoiding all matrix calculations. \verb0sanitycheck.r0 provides
+an example. The next subsection fleshes out how the process is supposed
+to work and the following subsection is a bit of theory showing that
+it does work.
+\subsection{Iterative Simple Linear Regression}
 
-\subsubsection{The Iterative SLR Process}
+One idea to avoid doing matrix arithmetic in the model selection
+algorithm, suggested by Dan Nettleton, is to avoid computing the
+coefficient estimates altoether. In order to do this, we first fit all
+simple linear regression models. Then to fit regression models with
+two variables included, we find one of the SLR models with only one of
+the two desired covariate then regress the new variable on the old
+variable. Then we regress the residuals of the original regression
+model on the residuals of the new covariate regression model, yielding
+the residuals of the larger model. In this fashion, we can start from
+the smallest possible models and iteratively obtain the residuals of
+every possible model using only simple linear regressions -
+i.e. avoiding all matrix calculations. \verb0sanitycheck.r0 provides
+an example. The next subsection fleshes out how the process is supposed
+to work and the following subsection is a bit of theory showing that
+it does work.
+
+\subsubsection{The Iterative SLR Process}\label{addedvariable}
 
 Suppose we want to obtain the residuals from a full regression model
 \begin{align}\label{full}
@@ -499,27 +516,42 @@ so that
 \[
 \bm{y} = \bm{X_1}\bm{\beta_1} + \bm{X_2}\bm{\beta_2} + \bm{\epsilon}
 \]
-Rearranging yields
-\begin{align}\label{full2}
-\bm{y} - \bm{X_1}\bm{\beta_1} = \bm{X_2}\bm{\beta_2} + \bm{\epsilon}
-\end{align}
-Note that the left hand side is just the residual from the model
+
+Now suppose we have already fit the model
 \begin{align}\label{red}
-\bm{y} = \bm{X_1}\bm{\beta_1} + \bm{\delta}
+\bm{y} = \bm{X_1}\bm{\beta_1}+\bm{\delta}_{red}
 \end{align}
-so that we can rewrite \eqref{full2} as
-\begin{align}\label{red2}
-\bm{\delta} = \bm{X_2}\bm{\beta_2} + \bm{\epsilon}
+and have at our disposal its estimated residuals
+$\hat{\bm{\delta}}_{red}$. Also suppose that $\bm{X_2}$ is a single column
+vector. Then fit the added variable regression
+\begin{align}\label{add}
+\bm{X_2} = \bm{X_1}\bm{\lambda_1}+\bm{\delta}_{add}
 \end{align}
-Thus, the argument goes, if we first fit model \eqref{red} then fit
-model \eqref{red2} using the residuals from \eqref{red}, we can obtain
-the residuals to the full model \eqref{full}. As long as $\bm{X_2}$ is
-a single column, then we only ever have to fit simple linear
-regression models and most of those without an intercept.
+Then if fit the residual regression
+\begin{align}\label{residreg}
+\hat{\bm{\delta}}_{red} = \hat{\bm{\delta}}_{add}\gamma + \bm{\eta}
+\end{align}
+the estimate residuals of the residual regression are equal to that of
+the full model, that is $\hat{\bm{\eta}} = \hat{\bm{\epsilon}}$. So as
+long as we can obtain $\hat{\bm{\delta}}_{add}$ cheaply, we don't have
+to do matrix algebra in order to obtain $\hat{\bm{\epsilon}}$. Note
+that once the residuals for the full model are obtained, the full
+model can now be the reduced model so that another column can be added
+to the design matrix. The only wrinkle here is that obtaining
+$\hat{\bm{\delta}}_{add}$ without doing matrix operations may not be
+possible when $\bm{X_1}$ contains many columns, thouogh I haven't
+looked into this.
+
+It's worth noting that this process doesn't seem like it would work
+that well with a model search algorithm since the search algorithm
+would try to fit the best models while this algorithm naturally fits
+all models by first fitting the smallest, then iteratively fitting
+larger models.
+
+
 
 \subsubsection{Residual Relationship}
-The example in \verb0sanitycheck.r0 already shows that this basic
-process doesn't work as expected, but I'll show why here. First, some
+I'll show why this basic process works here. First, some
 preliminaries. Suppose we have the following regression model
 \[
 \bm{y} = \bm{X}\bm{\beta} + \bm{\epsilon}
@@ -545,35 +577,29 @@ So the estimated residuals for model \eqref{full} -- the full model -- are
 the estimated residuals for model \eqref{red} -- the
 reduced model -- are
 \[
-\bm{\hat{\delta}} = (\bm{I} - \bm{P_{X_1}})\bm{y}
+\bm{\hat{\delta}}_{red} = (\bm{I} - \bm{P_{X_1}})\bm{y}
 \]
-and the estimated residuals for model \eqref{red2} -- the residual
-model -- are
+the estimated residuals for model \eqref{add} -- the added variable -- are
 \[
-\bm{\hat{\eta}} = (\bm{I} - \bm{P_{X_2}})\bm{\hat{\delta}} = (\bm{I} -
-\bm{P_{X_2}})(\bm{I} - \bm{P_{X_1}})\bm{y}
+\bm{\hat{\delta}}_{add} = (\bm{I} - \bm{P_{X_1}})\bm{X_2}
 \]
+and the estimated residuals for model \eqref{residreg} -- the residual
+regression model -- are
+\begin{align}
+\bm{\hat{\eta}} &= [\bm{I} - \hat{\bm{\delta}}_{add}
+(\hat{\bm{\delta}}_{add}'\hat{\bm{\delta}}_{add})^{-1}
+\hat{\bm{\delta}}_{add}']\hat{\bm{\delta}}_{red}\\
+&= \left[\bm{I} - (\bm{I} - \bm{P_{X_1}})\bm{X_2} [\bm{X_2}'((\bm{I} -
+  \bm{P_{X_1}})'(\bm{I} - \bm{P_{X_1}})\bm{X_2}]^{-1} \bm{X_2}'(\bm{I}
+  - \bm{P_{X_1}}) \right] (\bm{I} - \bm{P_{X_1}})\bm{y}\\
+& = \hat{\bm{\delta}}_{red} - (\bm{I} -
+\bm{P_{X_1}})\bm{X_2}[\bm{X_2}'(\bm{I} -
+\bm{P_{X_1}})\bm{X_2}]^{-1}\bm{X_2}'(\bm{I}-\bm{P_{X_!}})\hat{\bm{\delta}}_{red} \label{eta}
+\end{align}
 
-In order for the process outlined in section 2 to work, we need
-$\bm{\hat{\epsilon}} = \bm{\hat{\eta}}$, or
-\[
-(\bm{I} - \bm{P_X})\bm{y} = (\bm{I} - \bm{P_{X_2}})(\bm{I} - \bm{P_{X_1}})\bm{y}
-\]
-where $\bm{X} = \begin{bmatrix} \bm{X_1}, &
-  \bm{X_2} \end{bmatrix}$. We could still salvage the idea if
-$\bm{\hat{\epsilon}} = f(\bm{\hat{\eta}})$ or $\bm{\hat{\epsilon}} =
-f(\bm{\hat{\delta}})$ where $f$ is some easily computable function.
 
-I'll show that $\bm{\hat{\epsilon}} = f(\bm{\hat{\delta}},
-\bm{P_{X_1}})$, that is the residuals of the full model is a function
-of the residuals of the reduced model {\it and} the projection
-matrix of the reduced model. This function won't be useful to us
-because we still have to fit the reduced model at every step in order
-to obtain the projection matrix of the reduced models and thus the
-residuals of the next larger model. I won't show that there isn't a
-function mapping the residuals of the reduced model onto the residuals
-of the full model that doesn't depend on $\bm{P_{X_1}}$, but the
-function I do derive suggests that such a function doesn't exist.
+In order for the process outlined in the section \ref{addedvariable} to work, we need
+$\bm{\hat{\epsilon}} = \bm{\hat{\eta}}$, which I'll now show.
 
 Start with the full model with the model matrix split up
 \[
@@ -624,51 +650,25 @@ and
   -\bm{S}\bm{X_2}'\bm{P_{X_1}}\bm{y} +
     \bm{S}\bm{X_2}'\bm{y} \end{bmatrix}\\
 &=\begin{bmatrix} (\bm{X_1}'\bm{X_1})^{-1}\bm{X_1}'\bm{y} -
-  (\bm{X_1}'\bm{X_1})^{-1}\bm{X_1}'\bm{X_2}\bm{S}\bm{X_2}'\bm{\hat{\delta}}\\
-  \bm{S}\bm{X_2}'\bm{\hat{\delta}} \end{bmatrix}
+  (\bm{X_1}'\bm{X_1})^{-1}\bm{X_1}'\bm{X_2}\bm{S}\bm{X_2}'\bm{\hat{\delta}}_{red}\\
+  \bm{S}\bm{X_2}'\bm{\hat{\delta}}_{red} \end{bmatrix}
 \end{align*}
 This yields
 \begin{align*}
 \bm{\hat{y}} &= \bm{X}\bm{\hat{\beta}} = \begin{bmatrix} \bm{X_1} &
   \bm{X_2} \end{bmatrix} \bm{\hat{\beta}} = \bm{P_{X_1}}\bm{y} -
-\bm{P_{X_1}}\bm{X_2}\bm{S}\bm{X_2}'\bm{\hat{\delta}} +
-\bm{X_2}\bm{S}\bm{X_2}'\bm{\hat{\delta}} \\
+\bm{P_{X_1}}\bm{X_2}\bm{S}\bm{X_2}'\bm{\hat{\delta}}_{red} +
+\bm{X_2}\bm{S}\bm{X_2}'\bm{\hat{\delta}}_{red} \\
 &= \bm{P_{X_1}}\bm{y} +
-(\bm{I}-\bm{P_{X_1}})\bm{X_2}\bm{S}\bm{X_2}'\bm{\hat{\delta}}
+(\bm{I}-\bm{P_{X_1}})\bm{X_2}\bm{S}\bm{X_2}'\bm{\hat{\delta}}_{red}
 \end{align*}
 So
 \begin{align*}
-\bm{\hat{\epsilon}} &= \bm{y}-\bm{\hat{y}} = \bm{\hat{\delta}} -
+\bm{\hat{\epsilon}} &= \bm{y}-\bm{\hat{y}} = \bm{\hat{\delta}}_{red} -
 (\bm{I}-\bm{P_{X_1}})\bm{X_2}\left[\bm{X_2}'(\bm{I}-\bm{P_{X_1}})
-  \bm{X_2}\right]^{-1}\bm{\hat{\delta}}
+  \bm{X_2}\right]^{-1}\bm{X_2}'\bm{\hat{\delta}}_{red}\\
+&=\hat{\bm{\eta}}
 \end{align*}
-
-To restate the result just show, let the full regression model be of
-the form
-\[
-\bm{y} = \bm{X}\bm{\beta} + \bm{\epsilon}
-\]
-where $\bm{X} = \begin{bmatrix} \bm{X_1} &
-  \bm{X_2} \end{bmatrix}$. Then let the reduced model be of the form
-\[
-\bm{y} = \bm{X_1}\bm{\beta_1} + \bm{\delta}
-\]
-Then the estimated residuals of the full model are related to the
-estimated residuals of the reduced model in the following manner:
-\[
-\bm{\hat{\epsilon}} = \bm{\hat{\delta}} -
-(\bm{I}-\bm{P_{X_1}})\bm{X_2}\left[\bm{X_2}'(\bm{I}-\bm{P_{X_1}})
-  \bm{X_2}\right]^{-1}\bm{\hat{\delta}}
-\]
-So $\bm{\hat{\epsilon}}$ still depends on the projection matrix of the
-reduced model, $\bm{P_{X_1}}$. This still may be useful, however, if
-the equation can be manipulated so that the projection matrices can be
-turned into the reduced model residuals. Note, however, that if the
-equation still requires matrix multiplication even when $\bm{X_2}$ is
-a single column, this method may not yield any gains. At the moment,
-nothing seems possible. Note that $\bm{y}\bm{y}'$ is not invertible,
-so simply inserting $\bm{y}\bm{y}'(\bm{y}\bm{y}')^{-1}$ into the
-equation strategically will not work.
 
 \subsection{Model Per Block}
 
