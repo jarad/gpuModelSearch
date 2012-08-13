@@ -735,6 +735,6 @@ computed criteria. Ideally it would depend on something known a priori
 like $n$, $k$ or a simple function thereof.
 
 \bibliography{gpubib}
-\bibliographystyle{asa}
+\bibliographystyle{plainnat}
 
 \end{document}
