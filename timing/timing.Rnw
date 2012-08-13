@@ -37,12 +37,13 @@ options(replace.assign=TRUE,width=90)
 
 The goal for the summer was to explore using massively parallel
 computation on the GPU in order to speed up model selection
-computation in the linear model. Specifically, to speed up covariate
-selection for regression. An \verb0R0 package for fitting linear
-models using a GPU already exists - \verb0gputools0. I wrote three
-separate functions, based on \verb0gputools0, to fit all possible
-sub-models and tested them with a variety of choices of the number of
-observations and the number of covariates.
+computation in the linear model, specifically, to speed up covariate
+selection for regression. Section 2 formally states the computational
+problem that we are trying to speed up and the existing tools for
+doing this on a GPU. Section 3 details the methods I used to implement
+and improve upon existing tools. Section 4 shows the results of timing
+these methods and section 5 explores avenues for further work,
+including the method suggested by Dan Nettleton.
 
 \section{Problem Statement}
 Suppose we have a continuous variable, $y$, and a vector of
@@ -259,7 +260,7 @@ these models sequentially by calling the \verb0gputools0 function
 output is information on the top 1000 models, including AIC, BIC, log
 marginal likelihood, the posterior model probability (assuming a
 uniform prior over the model space), and the total posterior
-probability assigned to model {\it not} included in this list.
+probability assigned to models {\it not} included in this list.
 
 \subsection{C Wrapper}
 
@@ -671,9 +672,67 @@ equation strategically will not work.
 
 \subsection{Model Per Block}
 
+Short of a clever algorithm like the one proposed in the previous
+section, there are two places to speed up the model fitting
+computations and thus model selection computations. The first is in
+the linear algebra required to fit a model. The \verb0R0 function
+\verb0lm0 finds $\hat{\bm{\beta}}$ using a Householder transformation
+method. Following this, the \verb0gputools0 function \verb0gpuLSFitF0
+uses a blocked Householder transormation method that is optimized for
+accessing GPU memory. This process dramatically speeds up the linear
+algebra required in the fitting process. The second place where speed
+ups can occur is by fitting models simultaneously on the GPU rather
+than sequentially. It's likely the case that the most dramatic speed
+ups will occur from combining these two methods.
+
+A natural way to accomplish this is to assign each submodel a block of
+threads. Threads are organized into blocks that can easily communicate
+with each other on the GPU. Threads from different blocks, however,
+can't communicate as easily. By assigning each block a model, the
+linear algebra operations required to fit each model still be
+parallelized among the threads within that block but the GPU can work
+on separate blocks and thus separate models simultaneously.
+
+In order to implement this procedure, a whole suite of linear algebra
+functions has to be written. NVIDIA created the CUBLAS library, a
+GPU implementations of BLAS, but it's a set of GPU kernels that are
+only callable from inside a CPU process. Many of these functions will
+have to essentially be rewritten to be callable from within a block of
+threads so that the linear algebra required to fit models can be
+parallelized.
+
 \subsection{Model Per Thread}
 
+There is a lot of overhead associated with passing information to and
+from the GPU and across threads or blocks of threads within the
+GPU. It's possible that this overhead outweighs any gain achieved by
+parallelizing the linear alebra in the model fitting process. A
+strategy that would avoid that overhead is to assign each thread it's
+own model and fit that model using sequential linear algebra. Once
+again, a whole suite of BLAS functions will have to be written so that
+they're callable on a thread of a GPU.
+
 \subsection{Hybrid}
+
+So there are three strategies for speeding of the fitting process of
+linear models. They are
+
+\begin{enumerate}
+\item Parallelize the linear algebra. Implemented by \verb0gputools0
+  and all of my wrappers.
+\item Fit models simultaneously.
+\item Fit models simultaneously while also parallelizing the linear algebra.
+\end{enumerate}
+
+If it weren't for overhead, 3 would clearly be the fastest. As it
+stands, we're uncertain about which strategy will be faster. It's
+plausible that different strategies are faster in different cases. If
+this is true and some feature of the particular submodel we are
+fitting gives us useful information about which strategy will be
+faster, it may be possible to construct a hybrid algorithm that picks
+for each submodel the fastest fitting method based on some easily
+computed criteria. Ideally it would depend on something known a priori
+like $n$, $k$ or a simple function thereof.
 
 \bibliography{gpubib}
 \bibliographystyle{asa}
