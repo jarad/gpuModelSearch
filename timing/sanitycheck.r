@@ -1,6 +1,5 @@
 ## Sanity check on Nettleton's idea:
 
-set.seed(154)
 n = 10
 rho = .5
 x1 = rnorm(n)
@@ -16,3 +15,7 @@ added.variable <- summary(lm(resid(y.x1)~resid(x2.x1)-1))
 full <- summary(lm(y~x1+x2-1))
 
 all.equal(coef(added.variable)[1],coef(full)[2,1])
+
+all.equal(resid(added.variable), resid(full))
+
+
