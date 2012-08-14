@@ -1,16 +1,14 @@
 source("timingfun.r")
 
-n <- 5000
-k <- 20
-chooseGpu(3)
+n <- 100000
+k <- 10
+
 
 set.seed(2.42)
 X <- genX(n,k)
 Y <- genY(n,k,X)
 
-gpuSolve(diag(2))
 
-
-time <- system.time(test <- gpuCSlmsearch(X,Y))
+time <- system.time(test <- LMsearch(X,Y))
 
 time
