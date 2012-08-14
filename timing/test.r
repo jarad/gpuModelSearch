@@ -1,6 +1,6 @@
 source("timingfun.r")
 
-n <- 500000
+n <- 5000
 k <- 20
 chooseGpu(3)
 
