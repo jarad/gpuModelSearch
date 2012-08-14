@@ -295,16 +295,18 @@ from RAM to the GPU.
 \section{CUBLAS Bug}
 
 In the process of writing these wrappers, I found a bug in the CUBLAS
-library. CUBLAS is a CUDA implementation of the BLAS library for
-linear algegra. The file \verb0~/gpuModelSearch/CublasBug/README0
-contains all of the relevant details, but the short version is that
-you can only open and close so many CUBLAS contexts before the program
-crashes - 13,000 or so on our system. A CUBLAS context is created in
-version 1 with \verb0cublasInit();0 and destroyed with
-\verb0cublasShutdown();0. In version 2 of CUBLAS it's possible to have multiple
-contexts running simultaneously in the same program, so you have to
-name the context. You create a context with \verb0cublasHandle_t name;0
-to name the context and \verb0cublasCreate(&name);0 to create the
+library, at least in version 4.1 of the CUDA toolkit (the version
+running on our machine). CUBLAS is a CUDA implementation of the BLAS
+library for linear algegra. The file
+\verb0~/gpuModelSearch/CublasBug/README0 contains all of the relevant
+details, but the short version is that you can only open and close so
+many CUBLAS contexts before the program crashes - 13,000 or so on our
+system. A CUBLAS context is created in version 1 with
+\verb0cublasInit();0 and destroyed with \verb0cublasShutdown();0. In
+version 2 of CUBLAS it's possible to have multiple contexts running
+simultaneously in the same program, so you have to name the
+context. You create a context with \verb0cublasHandle_t name;0 to name
+the context and \verb0cublasCreate(&name);0 to create the
 context. \verb0cublasDestroy(name);0 destroys the context. It turns
 out that the bug is in a function that both \verb0cublasDestroy()0 and
 \verb0cublasShutdown()0 call in order to clear previously allocated
@@ -313,7 +315,11 @@ resources from the GPU.\footnote{Resrouces aren't being properly freed
   see: http://www.culatools.com/blog/2012/03/12/3099/} The upshot is
 that for $k > 13$, the \verb0R0 and \verb0C0 wrappers can't fit all
 possible submodels before the program crashes, so we don't have timing
-data on those functions for large $k$.
+data on those functions for large $k$. The bug has been fixed in
+version 4.2 of the CUDA toolkit and an upgrade to the toolkit on our
+machine should remove this restriction.\footnote{For details, see
+  http://developer.download.nvidia.com/compute/DevZone/docs/html/C/doc/CUDA_Toolkit_Release_Notes.txt }
+
 
 \section{Timing the Functions}
 
