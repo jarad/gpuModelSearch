@@ -41,9 +41,11 @@ computation in the linear model, specifically, to speed up covariate
 selection for regression. Section 2 formally states the computational
 problem that we are trying to speed up and the existing tools for
 doing this on a GPU. Section 3 details the methods I used to implement
-and improve upon existing tools. Section 4 shows the results of timing
-these methods and section 5 explores avenues for further work,
-including the method suggested by Dan Nettleton.
+and improve upon existing tools. Section 4 provides some details on a
+bug I discoverd in the CUBLAS library and what it means for this
+project. Section 5 shows the results of timing the various methods and
+section 6 explores avenues for further work, including an iterative
+simple linear regression method suggested by Dan Nettleton.
 
 \section{Problem Statement}
 Suppose we have a continuous variable, $y$, and a vector of
@@ -290,6 +292,29 @@ copied to the GPU so that every model has access to them during the
 fitting process without having to relying on slow memory transfers
 from RAM to the GPU.
 
+\section{CUBLAS Bug}
+
+In the process of writing these wrappers, I found a bug in the CUBLAS
+library. CUBLAS is a CUDA implementation of the BLAS library for
+linear algegra. The file \verb0~/gpuModelSearch/CublasBug/README0
+contains all of the relevant details, but the short version is that
+you can only open and close so many CUBLAS contexts before the program
+crashes - 13,000 or so on our system. A CUBLAS context is created in
+version 1 with \verb0cublasInit();0 and destroyed with
+\verb0cublasShutdown();0. In version 2 of CUBLAS it's possible to have multiple
+contexts running simultaneously in the same program, so you have to
+name the context. You create a context with \verb0cublasHandle_t name;0
+to name the context and \verb0cublasCreate(&name);0 to create the
+context. \verb0cublasDestroy(name);0 destroys the context. It turns
+out that the bug is in a function that both \verb0cublasDestroy()0 and
+\verb0cublasShutdown()0 call in order to clear previously allocated
+resources from the GPU.\footnote{Resrouces aren't being properly freed
+  from the GPU resulting in memory fragmentation. For more details,
+  see: http://www.culatools.com/blog/2012/03/12/3099/} The upshot is
+that for $k > 13$, the \verb0R0 and \verb0C0 wrappers can't fit all
+possible submodels before the program crashes, so we don't have timing
+data on those functions for large $k$.
+
 \section{Timing the Functions}
 
 At the outset, we expect the \verb0C0 wrapper to be slightly faster
@@ -326,7 +351,7 @@ to be significantly faster than both of the other two wrappers and the
 difference in speed appears to increase as the number of observations,
 $n$, increases.
 
-\begin{figure}[ht]
+\begin{figure}[ht!]
   \centering
 <<k10, fig.width=4, fig.height=4, out.width='.7\\textwidth', echo=F>>=
 mns <- aggregate(data[,3:5], list(n=data$n,k=data$k,wrap=data$wrap), "mean")
@@ -350,7 +375,7 @@ faster than both the \verb0C0 and \verb0R0 wrappers. The ratio appears
 to stabilizes at this point with similar numbers at $n=2000000$, but
 we don't have data for larger $n$.
 
-\begin{figure}[ht]
+\begin{figure}[ht!]
   \centering
 <<k10rat, fig.width=4, fig.height=4, out.width='.7\\textwidth', echo=F>>=
 rdat <- data[data$wrap=="R",-6]
@@ -402,7 +427,7 @@ $k=10$ --- the smart wrapper is roughly 3--4 times faster than the
 other two wrappers at $n=10000$ and roughly 7 times faster at
 $n=1000000$ and $n=2000000$.
 
-\begin{figure}[ht]
+\begin{figure}[ht!]
   \centering
 <<k5, fig.width=4, fig.height=4, out.width='.7\\textwidth', echo=F>>=
 qplot(data=mns[mns$k==5,],x=n, y=elapstime, color=wrap, geom="line", log="x")
@@ -412,7 +437,7 @@ qplot(data=mns[mns$k==5,],x=n, y=elapstime, color=wrap, geom="line", log="x")
 \label{k5}
 \end{figure}
 
-\begin{figure}[ht]
+\begin{figure}[ht!]
   \centering
 <<k5rat, fig.width=4, fig.height=4, out.width='.7\\textwidth', echo=F>>=
 qplot(data=ratmns[ratmns$k==5,],x=n, y=elapsratio, color=ratio, geom="line", log="x", ylim=c(0,8))
@@ -438,18 +463,18 @@ faster than the other two wrappers - rough 1.5 times faster than the
 \verb0C0 wrapper and 1.7 times faster than the \verb0R0 wrapper,
 decreasing as $k$ increases.
 
-\begin{figure}
+\begin{figure}[ht!]
   \centering
 <<n100, fig.width=4, fig.height=4, out.width='.7\\textwidth', echo=F>>=
 qplot(data=mns[mns$n==100,],x=k, y=elapstime, color=wrap, geom="line")
 @
-\caption{Time to fit (in seconds) vs. $k$ by wrapper type,
-  $n=100$. Note that due to a bug in the CUDA API, $k$ must be kept
-  small for all wrappers except the smart wrapper.}
+\caption{Time to fit (in seconds) vs. $k$ by wrapper type
+  $n=100$. Recall that due to a bug in the CUBLAS library, $k$ must be
+  kept small for all wrappers except the smart wrapper.}
 \label{n100}
 \end{figure}
 
-\begin{figure}
+\begin{figure}[ht!]
   \centering
 <<n100rat, fig.width=4, fig.height=4, out.width='.7\\textwidth', echo=F>>=
 qplot(data=ratmns[ratmns$n==100,],x=k, y=elapsratio, color=ratio, geom="line", ylim=c(1,2))
