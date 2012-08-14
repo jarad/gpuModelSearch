@@ -1,7 +1,7 @@
 
 
 ##Stores model selection info of the best 1000 models according to sortby
-gpuRlmsearch <- function(X, Y, g=nrow(Y), sortby="AIC"){
+LMsearch <- function(X, Y, g=nrow(Y), sortby="AIC"){
   p <- ncol(X) #number of regressors, including intercept
   k <- p - 1 #number of possible covariates
   n <- nrow(X) #sample size
