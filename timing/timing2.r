@@ -30,7 +30,7 @@ for(n in ns){
       fittime[i,] <- c(n,k,time[1:3], "CS")
       write.csv(fittime, "fittime.csv", row.names=F)
       
-      print(c(i,n,k,wrap,j))
+      print(c(i,n,k,"CS",j))
           
       i <- i + 1
           
@@ -62,7 +62,7 @@ for(n in ns){
       fittime[i,] <- c(n,k,time[1:3], "LM")
       write.csv(fittime, "fittime.csv", row.names=F)
       
-      print(c(i,n,k,wrap,j))
+      print(c(i,n,k,"LM",j))
           
       i <- i + 1
           
