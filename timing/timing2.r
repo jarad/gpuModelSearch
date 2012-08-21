@@ -13,7 +13,7 @@ set.seed(2.42)
 ## Set gpu to one that no one is using
 chooseGpu(3)
 
-i <- dim(fittime)[1]
+i <- dim(fittime)[1] + 1
 for(n in ns){
   for(k in ks){
     for(j in 1:N){
