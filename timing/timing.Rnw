@@ -317,7 +317,8 @@ that for $k > 13$, the \verb0R0 and \verb0C0 wrappers can't fit all
 possible submodels before the program crashes, so we don't have timing
 data on those functions for large $k$. The bug has been fixed in
 version 4.2 of the CUDA toolkit and an upgrade to the toolkit on our
-machine should remove this restriction.\footnote{For details, see
+machine should remove this restriction, once the upgrade is available
+for our OS.\footnote{For details, see
   http://developer.download.nvidia.com/compute/DevZone/docs/html/C/doc/CUDA_Toolkit_Release_Notes.txt }
 
 
@@ -325,47 +326,48 @@ machine should remove this restriction.\footnote{For details, see
 
 At the outset, we expect the \verb0C0 wrapper to be slightly faster
 than the \verb0R0 wrapper and the \verb0C0 smart wrapper to be
-significantly faster than both of the other wrappers. In order to
-assess how fast these functions actually are, we created full model
+significantly faster than both of the other wrappers. A baseline
+wrapper was also created - the LM wrapper - that is essentially the
+same thing as the \verb0R0 wrapper except it uses the R function
+\verb0lm0 in order to fit all models sequentially on the CPU. In order
+to assess how fast these functions actually are, we created full model
 matrices of various sizes along with response vectors by varying the
 number of observations $n$ and the number of possible covariates
-$k$. These functions were fit on GPU 2 (with 0-based indexing) of the
+$k$. These functions were fit on GPU 3 (with 0-based indexing) of the
 impact1 linux server at Iowa State University. This GPU is an NVIDIA
 Tesla M2070 with 5375 MB of memory and 448 CUDA Cores running CUDA
-driver and runtime version 4.1. Table \ref{sam} shows all of choices
-of $n$ and $k$ timed for each wrapper and the number of times that
-combination was timed.
+driver and runtime version 4.1. All functions were timed using the
+\verb0R0 function \verb0sytem.time0 and the value \verb0elapstime0.
 
 <<sample-size, results=tex, echo=F>>=
 library(ggplot2)
 library(xtable)
 data <- read.csv("fittime.csv")
-leng <- aggregate(data[data$wrap=="C",3], list(n=data$n[data$wrap=="C"],k=data$k[data$wrap=="C"]), "length") #$
-colnames(leng)[3] <- "sam.size"
-leng$n <- as.integer(leng$n)
-xtable(leng, caption="Sample sizes of various combinations of factors, including number of observations (n) and number of possible covariates (k). Each wrapper had the given sample size for each combination of factors", label="sam")
 @
 
 First we plot the time to fit all possible models by sample size
 $n$ in figure \ref{k10}, with the number of covariates ($k$)
 held constant at 10. As expected, time to fit increases as the sample
-size increases. All functions were timed using the \verb0R0 function
-\verb0sytem.time0 and the value \verb0elapstime0. For the entire
-domain, it appears \verb0C0 wrapper fits all possible models slightly
-faster than the \verb0R0 wrapper. The smart \verb0C0 wrapper appears
-to be significantly faster than both of the other two wrappers and the
-difference in speed appears to increase as the number of observations,
-$n$, increases.
+size increases.  For the entire domain, it appears \verb0C0 wrapper
+fits all possible models slightly faster than the \verb0R0
+wrapper while the LM wrapper is signicantly faster than both. This is
+rather suprising - the overhead required to work on the GPU outweighs
+any speedup gains compared to a naive sequential algorithm using
+\verb0lm0. The smart \verb0C0 wrapper removes much of this overhead
+and as a result itappears to be significantly faster than all of the
+wrappers and the difference in speed appears to increase as the number
+of observations, $n$, increases.
 
 \begin{figure}[ht!]
   \centering
 <<k10, fig.width=4, fig.height=4, out.width='.7\\textwidth', echo=F>>=
 mns <- aggregate(data[,3:5], list(n=data$n,k=data$k,wrap=data$wrap), "mean")
-qplot(data=mns[mns$k==10,],x=n, y=elapstime, color=wrap, geom="line", log="x")
+qplot(data=mns[mns$k==10 & mns$n <= 2000000,],x=n, y=elapstime, color=wrap, geom="line", log="x") #$
 @
-\caption{Time to fit (in seconds) vs. $n$ (log scale) by wrapper
-  type.''R'' denotes the R wrapper, ``C'' denotes the C
-  wrapper, and ``CS'' denotes the smart C wrapper.}
+\caption{Mean time to fit over 5 samples (in seconds) vs. $n$ (log
+  scale) by wrapper type.''R'' denotes the R wrapper, ``C'' denotes
+  the C wrapper, ``CS'' denotes the smart C wrapper and ``LM'' denotes
+  the non-GPU LM wrapper.}
 \label{k10}
 \end{figure}
 
@@ -386,7 +388,8 @@ we don't have data for larger $n$.
 <<k10rat, fig.width=4, fig.height=4, out.width='.7\\textwidth', echo=F>>=
 rdat <- data[data$wrap=="R",-6]
 cdat <- data[data$wrap=="C",-6]
-csdat <- data[data$wrap=="CS",-6]
+csdat <- data[data$wrap=="CS" & data$n<=2000000 & data$k<=13,-6]
+lmdat <- data[data$wrap=="LM" & data$n<=2000000 & data$k<=13, -6]
 rcratio <- rdat
 rcratio[,3:5] <- rdat[,3:5] / cdat[,3:5]
 rcsratio <- rdat
