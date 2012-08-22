@@ -319,7 +319,7 @@ data on those functions for large $k$. The bug has been fixed in
 version 4.2 of the CUDA toolkit and an upgrade to the toolkit on our
 machine should remove this restriction, once the upgrade is available
 for our OS.\footnote{For details, see
-  http://developer.download.nvidia.com/compute/DevZone/docs/html/C/doc/CUDA_Toolkit_Release_Notes.txt }
+  http://developer.download.nvidia.com/compute/DevZone/docs/html/C/doc/CUDA\_Toolkit\_Release\_Notes.txt }
 
 
 \section{Timing the Functions}
@@ -337,7 +337,11 @@ $k$. These functions were fit on GPU 3 (with 0-based indexing) of the
 impact1 linux server at Iowa State University. This GPU is an NVIDIA
 Tesla M2070 with 5375 MB of memory and 448 CUDA Cores running CUDA
 driver and runtime version 4.1. All functions were timed using the
-\verb0R0 function \verb0sytem.time0 and the value \verb0elapstime0.
+\verb0R0 function \verb0sytem.time0 and the value \verb0elapstime0. A
+wide variety of choices of $n$ and $k$ were sampled - the data is
+available in the file \verb0fittime.csv0 in the folder
+\verb0~/gpuModelSearch/timing0 of the github
+repository.\footnote{Available online at https://github.com/jarad/gpuModelSearch}
 
 <<sample-size, results=tex, echo=F>>=
 library(ggplot2)
@@ -358,7 +362,7 @@ and as a result itappears to be significantly faster than all of the
 wrappers and the difference in speed appears to increase as the number
 of observations, $n$, increases.
 
-\begin{figure}[ht!]
+\begin{figure}[ht]
   \centering
 <<k10, fig.width=4, fig.height=4, out.width='.7\\textwidth', echo=F>>=
 mns <- aggregate(data[,3:5], list(n=data$n,k=data$k,wrap=data$wrap), "mean")
@@ -372,50 +376,51 @@ qplot(data=mns[mns$k==10 & mns$n <= 2000000,],x=n, y=elapstime, color=wrap, geom
 \end{figure}
 
 Plotting the ratios of times to fit in figure \ref{k10rat} adds more
-information to the story. The \verb0C0 wrapper is only slightly faster
-than the \verb0R0 wrapper over the range of $n$ sampled. By
-$n=2000000$, there is essentially no difference in fit time. The smart
-wrapper, however, is increasingly faster than the other wrappers as
-$n$ increases. At $n=10000$, the smart wrapper is roughly 3 times
-faster than the \verb0C0 wrapper and 4.5 times faster than the
-\verb0R0 wrapper. At $n=1000000$, the smart wrapper is about 7.5 times
-faster than both the \verb0C0 and \verb0R0 wrappers. The ratio appears
-to stabilizes at this point with similar numbers at $n=2000000$, but
-we don't have data for larger $n$.
+information to the story. The \verb0C0 and \verb0R0 wrappers are
+significantly slower than the LM wrapper, especially for small
+$n$. For $n>10,000$, they are roughly half as fast as the LM wrapper
+and basically indistinguishable from each other, though the \verb0C0
+wrapper appears to be slightly faster over most of the domain. For
+small $n$, the smart wrapper is also significantly slower than the LM
+wrapper, but as $n$ increases beyond 1000, the mean ratio of LM fit
+time to CS fit time increases approximately linearly so that at
+$n=2,000,000$ the smart wrapper is about 4 times faster than the
+non-GPU LM wrapper. At least for $k=10$, using a GPU is only faster
+for $n>10,000$ or so.
 
-\begin{figure}[ht!]
+\begin{figure}[ht]
   \centering
 <<k10rat, fig.width=4, fig.height=4, out.width='.7\\textwidth', echo=F>>=
 rdat <- data[data$wrap=="R",-6]
 cdat <- data[data$wrap=="C",-6]
 csdat <- data[data$wrap=="CS" & data$n<=2000000 & data$k<=13,-6]
 lmdat <- data[data$wrap=="LM" & data$n<=2000000 & data$k<=13, -6]
-rcratio <- rdat
-rcratio[,3:5] <- rdat[,3:5] / cdat[,3:5]
-rcsratio <- rdat
-rcsratio[,3:5] <- rdat[,3:5] / csdat[,3:5]
-ccsratio <- cdat
-ccsratio[,3:5] <- cdat[,3:5] / csdat[,3:5]
+rratio <- rdat
+rratio[,3:5] <- lmdat[,3:5] / rdat[,3:5]
+cratio <- cdat
+cratio[,3:5] <- lmdat[,3:5] / cdat[,3:5]
+csratio <- csdat
+csratio[,3:5] <- lmdat[,3:5] / csdat[,3:5]
 
-rcratmns <- aggregate(rcratio[,3:5], list(n=rcratio$n,k=rcratio$k), "mean")
-rcsratmns <- aggregate(rcsratio[,3:5], list(n=rcsratio$n,k=rcsratio$k), "mean")
-ccsratmns <- aggregate(ccsratio[,3:5], list(n=ccsratio$n,k=ccsratio$k), "mean")
+rratmns <- aggregate(rratio[,3:5], list(n=rratio$n,k=rratio$k), "mean")
+cratmns <- aggregate(cratio[,3:5], list(n=cratio$n,k=cratio$k), "mean")
+csratmns <- aggregate(csratio[,3:5], list(n=csratio$n,k=csratio$k), "mean")
 
-colnames(rcratmns)[3:5] <- paste(c("usr","sys","elaps"), "ratio", sep="")
-colnames(rcsratmns)[3:5] <- paste(c("usr","sys","elaps"), "ratio", sep="")
-colnames(ccsratmns)[3:5] <- paste(c("usr","sys","elaps"), "ratio", sep="")
+colnames(rratmns)[3:5] <- paste(c("usr","sys","elaps"), "ratio", sep="")
+colnames(cratmns)[3:5] <- paste(c("usr","sys","elaps"), "ratio", sep="")
+colnames(csratmns)[3:5] <- paste(c("usr","sys","elaps"), "ratio", sep="")
 
-rcratmns$ratio <- "R / C"
-rcsratmns$ratio <- "R / CS"
-ccsratmns$ratio <- "C / CS"
+rratmns$ratio <- "LM / R"
+cratmns$ratio <- "LM / C"
+csratmns$ratio <- "LM / CS"
 
-ratmns <- rbind(rcratmns, rcsratmns, ccsratmns)
+ratmns <- rbind(rratmns, cratmns, csratmns)
 
-qplot(data=ratmns[ratmns$k==10,],x=n, y=elapsratio, color=ratio, geom="line", log="x", ylim=c(1,8))
+qplot(data=ratmns[ratmns$k==10,],x=n, y=elapsratio, color=ratio, geom="line", log="x")
 @
-\caption{Ratio of wrapper fit times vs. n (log scale) for
-  $k=10$. Ratios are calculated as, e.g. for "R / C",  mean(fit time
-  for R wrapper / fit  time for C wrapper).}
+\caption{Ratio of LM fit time to various wrapper fit times vs. n (log scale) for
+  $k=10$. Ratios are calculated as, e.g. for "LM / R",  mean(fit time
+  for LM wrapper / fit  time for R wrapper).}
 \label{k10rat}
 \end{figure}
 
@@ -426,76 +431,126 @@ sample sizes, but as $n$ increases the R wrapper eventually becomes
 faster. The difference is small though; the larger disparity is once
 again between smart wrapper and both the \verb0C0 and \verb0R0
 wrappers. The smart wrapper appears significantly faster, especially
-as $n$ increases. Figure \ref{k5rat} shows the same phenomenon in terms of
-ratios. The \verb0R0 and \verb0C0 wrappers are roughly as fast as each
-other with the \verb0C0 wrapper faster over most of the domain though
-for very large $n$, the \verb0C0 wrapper is actually {\it slower} than
-the \verb0R0 wrapper, which is surprising. The trajectory of the
-relative speed of the smart wrapper is similar in this case to
-$k=10$ --- the smart wrapper is roughly 3--4 times faster than the
-other two wrappers at $n=10000$ and roughly 7 times faster at
-$n=1000000$ and $n=2000000$.
+as $n$ increases. The LM wrapper's speed is, once again, about midway
+between the \verb0R0 and \verb0C0 wrappers at the slow end and the
+smart wrapper at the fast end. Figure \ref{k5rat} shows the same
+phenomenon in terms of ratios. The \verb0R0 and \verb0C0 wrappers are
+roughly as fast as each other with the \verb0C0 wrapper faster over
+most of the domain, though for very large $n$ the \verb0C0 wrapper is
+surprisingly {\it slower} than the \verb0R0 wrapper. For large $n$,
+their speed stabilizes at roughly half that of the non-GPU LM wrapper.
+The trajectory of the relative speed of the smart wrapper is a bit
+different in this case. For small $n$, once again LM is faster and
+once again starting at $n=1000$ or so, the relative speed of CS to LM
+is increasing linearly. However, at $n=100,000$ it levels off with CS
+about 2.5 times faster than LM. It appears that larger $n$ doesn't
+necessarily mean better speed gains from using the GPU.
 
-\begin{figure}[ht!]
+\begin{figure}[ht]
   \centering
 <<k5, fig.width=4, fig.height=4, out.width='.7\\textwidth', echo=F>>=
-qplot(data=mns[mns$k==5,],x=n, y=elapstime, color=wrap, geom="line", log="x")
+qplot(data=mns[mns$k==5 & mns$n<=2000000,],x=n, y=elapstime, color=wrap, geom="line", log="x")
 @
 \caption{Time to fit (in seconds) vs. $n$ (log scale) by wrapper type,
   $k=5$.}
 \label{k5}
 \end{figure}
 
-\begin{figure}[ht!]
+\begin{figure}[ht]
   \centering
 <<k5rat, fig.width=4, fig.height=4, out.width='.7\\textwidth', echo=F>>=
-qplot(data=ratmns[ratmns$k==5,],x=n, y=elapsratio, color=ratio, geom="line", log="x", ylim=c(0,8))
+qplot(data=ratmns[ratmns$k==5,],x=n, y=elapsratio, color=ratio, geom="line", log="x", ylim=c(0,8)) #$
 @
-\caption{Ratio wrapper fit times vs. $n$ (log scale) for $k=5$.}
+\caption{Ratio of wrapper fit times vs. $n$ (log scale) for $k=5$.}
 \label{k5rat}
 \end{figure}
 
-Figure \ref{n100} tells the story we expect when $n$ is held constant
+Figure \ref{n100} tells an interesting story when $n$ is held constant
 at 100 and $k$ increases. The \verb0C0 wrapper once again is slightly
 faster than the \verb0R0 wrapper while the smart wrapper is faster
 than both, though not nearly as significantly so in the range of $k$
-sampled. The ratios show in figure \ref{n100rat} that the \verb0C0
-wrapper is roughly 1.1--1.2 times faster than the \verb0R0 wrapper,
-decreasing as $k$ increases. The plot suggests --- but does not show
---- that as $k$ gets large, the \verb0R0 wrapper may be faster than
-the \verb0C0 wrapper. Due to a suspected bug in the CUDA API the gpu
-will stop responding before it can fit all possible models in the
-\verb0C0 and \verb0R0 wrappers when $k$ is larger than 13 - making it
-impossible to get even a single sample. As a result, we can only guess
-that the trend continues beyond $k=13$. The smart wrapper isn't much
-faster than the other two wrappers - rough 1.5 times faster than the
-\verb0C0 wrapper and 1.7 times faster than the \verb0R0 wrapper,
-decreasing as $k$ increases.
+sampled. However, the non-GPU LM wrapper is much faster than any of
+the GPU wrappers for larger $k$. The ratios show in figure
+\ref{n100rat} that all of the GPU wrappers, as $k$ increases the LM
+wrapper becomes relatively faster. The smart wrapper is the fastest of
+the GPU wrappers, but except for $k=5$ it's still less than a tenth as
+fast as the LM wrapper. Taken with the previous plots, this plot
+suggests that the smart wrapper is only advantaged when $n>>k$. As the
+two become relatively close, it appears that the overhead associated
+with making transfers to and from the GPU dominate any speedup in the
+linear algebra operations.
 
-\begin{figure}[ht!]
+\begin{figure}[ht]
   \centering
 <<n100, fig.width=4, fig.height=4, out.width='.7\\textwidth', echo=F>>=
-qplot(data=mns[mns$n==100,],x=k, y=elapstime, color=wrap, geom="line")
+qplot(data=mns[mns$n==100 & mns$k<=13,],x=k, y=elapstime, color=wrap, geom="line")
 @
 \caption{Time to fit (in seconds) vs. $k$ by wrapper type
   $n=100$. Recall that due to a bug in the CUBLAS library, $k$ must be
   kept small for all wrappers except the smart wrapper.}
 \label{n100}
 \end{figure}
-
-\begin{figure}[ht!]
+\begin{figure}[ht]
   \centering
 <<n100rat, fig.width=4, fig.height=4, out.width='.7\\textwidth', echo=F>>=
-qplot(data=ratmns[ratmns$n==100,],x=k, y=elapsratio, color=ratio, geom="line", ylim=c(1,2))
+qplot(data=ratmns[ratmns$n==100,],x=k, y=elapsratio, color=ratio, geom="line")
 @
 \caption{Ratio wrapper fit times vs. $k$ for $n=100$.}
 \label{n100rat}
 \end{figure}
 
-So there isn't much difference between the \verb0R0 and \verb0C0
-wrappers while the smart wrapper appears to be significantly faster,
-especially for large $n$.
+Finally, we take a look at the absolute fit time of the smart wrapper
+in order to estimate how long it would take to fit all possible models
+with a wider range of $n$ and $k$. In order to assess this, we sampled
+a wider range of $n$ and $k$ for the smart wrapper and fit the
+regression model:
+\[
+\mathrm{log}(elapstime_i)\stackrel{iid}{\sim}\mathrm{N}(\beta_0+n_i\beta_n+k_i\beta_k, \sigma^2)
+\]
+The results of the fit are below.
+<<csREG, echo=F>>=
+csdata <- data[data$wrap=="CS",]
+cs.log.model <- lm(log(elapstime)~n+k, data=csdata)
+summary(cs.log.model)
+@
+Unsuprisingly, both $n$ and $k$ are important predictors of log time
+to fit and $k$'s effect is several orders of magnitude larger. Based
+on this regression, table \ref{CSreg} contains predicted fit times for
+a wide range of values for $n$ and $k$. For $n<=10,000$ essentially
+the only determinant of fit time is $k$. At $k=30$, the maximum number
+of covariates for which the table contains a prediction, the time to
+fit is relatively stable at 94--96 days for values of $n$ less than
+10,000 -- note that for $k=30$ there are $2^{30}$ or approximately
+1,000,000,000 (one billion) regression models to fit. Similarly for
+$k=25$, the time to fit is around 2.85 days for $n$ less than
+10,000. For $k>25$ or so, the time to fit all possible models becomes
+relatively prohibitive no matter the number of observations.
 
+At $n=100,000$, fit times start increasing exponentially with $n$
+across all values of $k$.  At $n=1,000,000$, smaller values of $k$
+become prohibitive to fit, and this trend continues for $n=3,000,000$
+and larger. At $n=5,000,000$, it takes over 5 days to fit all possible
+models with just 10 possible covariates and at $n=7,000,000$ it would
+take over a year.
+
+
+
+<<csTable, results=tex, echo=F>>=
+ns <- c(100, 1000, 10000, 100000, 1000000, 3000000, 5000000, 7000000)
+ks <- 10:30
+nk <- length(ks)
+nn <- length(ns)
+n <- nk*nn
+
+X <- cbind(rep(1, n), rep(ns, nk), c(kronecker(ks, rep(1,nn))))
+beta <- t(t(coef(cs.log.model)))
+est <- X%*%beta
+est.mat <- matrix(est, ncol=nn, byrow=T)
+rownames(est.mat) <- paste("k=", ks, sep="")
+colnames(est.mat) <- paste("n=", ns, sep="")
+est.day.mat <- exp(est.mat)/60/60/24
+xtable(est.day.mat, caption="Predicted time in days to fit all possible regression models using the C smart wrapper, based on a regression of log(elapstime) on n and k.", label="CSreg")
+@
 \section{Further Work}
 
 \subsection{Iterative Simple Linear Regression}
