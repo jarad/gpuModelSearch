@@ -42,7 +42,7 @@ selection for regression. Section 2 formally states the computational
 problem that we are trying to speed up and the existing tools for
 doing this on a GPU. Section 3 details the methods I used to implement
 and improve upon existing tools. Section 4 provides some details on a
-bug I discoverd in the CUBLAS library and what it means for this
+bug I discovered in the CUBLAS library and what it means for this
 project. Section 5 shows the results of timing the various methods and
 section 6 explores avenues for further work, including an iterative
 simple linear regression method suggested by Dan Nettleton.
@@ -450,6 +450,7 @@ necessarily mean better speed gains from using the GPU.
   \centering
 <<k5, fig.width=4, fig.height=4, out.width='.7\\textwidth', echo=F>>=
 qplot(data=mns[mns$k==5 & mns$n<=2000000,],x=n, y=elapstime, color=wrap, geom="line", log="x")
+
 @
 \caption{Time to fit (in seconds) vs. $n$ (log scale) by wrapper type,
   $k=5$.}
@@ -490,6 +491,7 @@ qplot(data=mns[mns$n==100 & mns$k<=13,],x=k, y=elapstime, color=wrap, geom="line
   kept small for all wrappers except the smart wrapper.}
 \label{n100}
 \end{figure}
+
 \begin{figure}[ht]
   \centering
 <<n100rat, fig.width=4, fig.height=4, out.width='.7\\textwidth', echo=F>>=
@@ -553,23 +555,6 @@ xtable(est.day.mat, caption="Predicted time in days to fit all possible regressi
 @
 \section{Further Work}
 
-\subsection{Iterative Simple Linear Regression}
-
-One idea to avoid doing matrix arithmetic in the model selection
-algorithm, suggested by Dan Nettleton, is to avoid computing the
-coefficient estimates altoether. In order to do this, we first fit all
-simple linear regression models. Then to fit regression models with
-two variables included, we find one of the SLR models with only one of
-the two desired covariate then regress the new variable on the old
-variable. Then we regress the residuals of the original regression
-model on the residuals of the new covariate regression model, yielding
-the residuals of the larger model. In this fashion, we can start from
-the smallest possible models and iteratively obtain the residuals of
-every possible model using only simple linear regressions -
-i.e. avoiding all matrix calculations. \verb0sanitycheck.r0 provides
-an example. The next subsection fleshes out how the process is supposed
-to work and the following subsection is a bit of theory showing that
-it does work.
 \subsection{Iterative Simple Linear Regression}
 
 One idea to avoid doing matrix arithmetic in the model selection
@@ -822,6 +807,14 @@ faster, it may be possible to construct a hybrid algorithm that picks
 for each submodel the fastest fitting method based on some easily
 computed criteria. Ideally it would depend on something known a priori
 like $n$, $k$ or a simple function thereof.
+
+
+\section{Post-Presentation Notes}
+After presenting this work to the computational working group, I was
+alerted to the existence of an algorithm for quickly finding the
+estimates of all regression models after fitting the full regression
+model including all possible covariates: the Gauss-Doolittle
+algorithm, also known as the sweep operator\cite{goodnight1979tutorial}.
 
 \bibliography{gpubib}
 \bibliographystyle{plainnat}

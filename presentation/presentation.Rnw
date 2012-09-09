@@ -1,0 +1,485 @@
+\documentclass[xcolor=dvipsnames]{beamer}
+
+\makeatletter\def\Hy@xspace@end{}\makeatother
+
+\usepackage{graphicx, color, amssymb, amsmath, bm, rotating, graphics,
+epsfig, multicol}
+
+\usetheme{Boadilla}
+\usecolortheme[named=Red]{structure}
+\setbeamercovered{transparent}
+
+\title[GPU Computing for Regression]{GPU Computing for Regression
+  Covariate Selection}
+\author[Matt Simpson]{Matt Simpson}
+\date{\today}
+\institute[Dep. of Statistics, ISU]{Department of Statistics, Iowa State University}
+
+
+%\title[short title]{long title}
+%\subtitle[short subtitle]{long subtitle}
+%\author[short name]{long name}
+%\date[short date]{long date}
+%\institution[short name]{long name}
+
+
+\begin{document}
+
+<<setup, include=FALSE>>=
+# smaller font size for chunks
+opts_chunk$set(size = 'footnotesize')
+@
+
+<<preprocess, include=FALSE>>=
+## chunk 1
+library(ggplot2)
+library(xtable)
+data <- read.csv("fittime.csv")
+
+## chunk 2
+mns <- aggregate(data[,3:5], list(n=data$n,k=data$k,wrap=data$wrap), "mean")
+
+## chunk 3
+rdat <- data[data$wrap=="R",-6]
+cdat <- data[data$wrap=="C",-6]
+csdat <- data[data$wrap=="CS" & data$n<=2000000 & data$k<=13,-6]
+lmdat <- data[data$wrap=="LM" & data$n<=2000000 & data$k<=13, -6]
+rratio <- rdat
+rratio[,3:5] <- lmdat[,3:5] / rdat[,3:5]
+cratio <- cdat
+cratio[,3:5] <- lmdat[,3:5] / cdat[,3:5]
+csratio <- csdat
+csratio[,3:5] <- lmdat[,3:5] / csdat[,3:5]
+
+rratmns <- aggregate(rratio[,3:5], list(n=rratio$n,k=rratio$k), "mean")
+cratmns <- aggregate(cratio[,3:5], list(n=cratio$n,k=cratio$k), "mean")
+csratmns <- aggregate(csratio[,3:5], list(n=csratio$n,k=csratio$k), "mean")
+
+colnames(rratmns)[3:5] <- paste(c("usr","sys","elaps"), "ratio", sep="")
+colnames(cratmns)[3:5] <- paste(c("usr","sys","elaps"), "ratio", sep="")
+colnames(csratmns)[3:5] <- paste(c("usr","sys","elaps"), "ratio", sep="")
+
+rratmns$ratio <- "LM / R"
+cratmns$ratio <- "LM / C"
+csratmns$ratio <- "LM / CS"
+
+ratmns <- rbind(rratmns, cratmns, csratmns)
+
+## chunk 3
+csdata <- data[data$wrap=="CS",]
+cs.log.model <- lm(log(elapstime)~n+k, data=csdata)
+summary(cs.log.model)
+
+##chunk 4
+ns <- c(100, 1000, 10000, 100000, 1000000, 3000000, 5000000, 7000000)
+ks <- 10:30
+nk <- length(ks)
+nn <- length(ns)
+n <- nk*nn
+
+X <- cbind(rep(1, n), rep(ns, nk), c(kronecker(ks, rep(1,nn))))
+beta <- t(t(coef(cs.log.model)))
+est <- X%*%beta
+est.mat <- matrix(est, ncol=nn, byrow=T)
+rownames(est.mat) <- paste("k=", ks, sep="")
+colnames(est.mat) <- paste("n=", ns, sep="")
+est.day.mat <- exp(est.mat)/60/60/24
+@
+
+
+\begin{frame}
+\titlepage
+\end{frame}
+
+\begin{frame}
+\frametitle{Problem Statement}
+
+\begin{itemize}
+  \item[] $\bm{y}$: $n\times1$ response vector.
+  \item[]
+  \item[] $\bm{x}_1,\bm{x}_2,...,\bm{x}_k$: $k$ $n\times1$ predictors.
+  \item[]
+  \item[] $\bm{y}\sim\mathrm{N}(\bm{\mu},\sigma^2\bm{I}_n)$
+  \item[]
+  \item[] $\bm{\mu}$ is in the span of
+    $\bm{1}_n,\bm{x}_1,\bm{x}_2,...,\bm{x}_k$.
+  \item[]
+\end{itemize}
+\pause The model selection problem: select a ``best'' subset of the predictors.
+\end{frame}
+
+\begin{frame}
+\frametitle{Problem Statement}
+
+\begin{itemize}
+  \item[] Let $\bm{\gamma}=(\gamma_1,...,\gamma_k)'$ index the model
+    space.
+  \item[]
+  \item[] $\gamma_i=1$ indicates that $\bm{x}_i$ is an included
+    predictor variable.
+  \item[] \pause
+  \item[] Model $\bm{\gamma}$: $\bm{y} = \bm{1}_n\alpha_{\bm{\gamma}} +
+    \bm{X}_{\bm{\gamma}}\bm{\beta}_{\bm{\gamma}} + \bm{\epsilon}_{\bm{\gamma}}$
+  \begin{itemize}
+    \item[] where $\bm{X}_{\bm{\gamma}}=(\bm{x}_1,...,\bm{x}_k)$ and $\bm{\epsilon}_{\bm{\gamma}}\sim\mathrm{N}(0,\sigma^2\bm{I}_n)$
+  \end{itemize}
+  \item[]
+  \item[] $k$ predictors $\Rightarrow$ $M=2^k$ regression models
+  \item[]
+\end{itemize}
+\end{frame}
+
+\begin{frame}
+\frametitle{Model Fitting}
+The standard OLS estimator:
+\begin{itemize}
+  \item[] Let $\bm{\lambda}_{\bm{\gamma}}=(\alpha_{\bm{\gamma}},
+    \bm{\beta}_{\bm{\gamma}}')'$ and
+    $\bm{Z}_{\bm{\gamma}}=(\bm{1}_n,\bm{X}_{\bm{\gamma}})$
+  \item[]
+  \item[]
+    $\hat{\bm{\lambda}}_{\bm{\gamma}}=(\bm{Z}_{\bm{\gamma}}'\bm{Z}_{\bm{\gamma}})^{-1}\bm{Z}_{\bm{\gamma}}'\bm{y}$
+    and $\hat{\sigma}^2_{\bm{\gamma}} = \frac{SSE}{n-p_{\bm{\gamma}}}$
+  \begin{itemize}
+    \item[] where $SSE =
+      (\bm{y}-\bm{Z}_{\bm{\gamma}}\hat{\bm{\lambda}}_{\bm{\gamma}})'(\bm{y}-\bm{Z}_{\bm{\gamma}}\hat{\bm{\lambda}}_{\bm{\gamma}})$
+      and $p_{\bm{\gamma}}=k_{\bm{\gamma}}+1$
+    \end{itemize}
+    \item[]
+\end{itemize}
+\pause
+
+A standard prior for Bayes: Zellner's g-prior
+\begin{align*}
+      p(\alpha_{\bm{\gamma}},\sigma^2_{\bm{\gamma}}|\bm{\gamma})&\propto
+      \frac{1}{\sigma^2_{\bm{\gamma}}}\\
+      \bm{\lambda}_{\bm{\gamma}}|\alpha_{\bm{\gamma}},
+      \sigma^2_{\bm{\gamma}}, \bm{\gamma}&\sim \mathrm{N}\left(\bm{0},g\sigma^2_{\bm{\gamma}}(\bm{X}'_{\bm{\gamma}}\bm{X}_{\bm{\gamma}})^{-1}\right)
+    \end{align*}
+For some choice of $g$ - see Liang et al. (2007) for guidance.\newline
+
+\pause
+
+Posterior distribution of
+$(\sigma^2_{\bm{\gamma}},\alpha_{\bm{\gamma}},\bm{\beta}_{\bm{\gamma}})$
+can be derived analytically and depends on
+$\hat{\bm{\lambda}}_{\bm{\gamma}}$ and $\hat{\sigma}^2_{\bm{\gamma}}$.
+\end{frame}
+
+\begin{frame}
+  \frametitle{Model Selection}
+
+AIC:
+\begin{itemize}
+\item[]
+  $AIC(\bm{\gamma})=n\mathrm{log}\left(\hat{\sigma}^2_{\bm{\gamma}}\right)
+  + 2(p_{\bm{\gamma}}+1)$
+\item Determined up to an additive constant common to all models.
+\item Assesses relative model fit - smaller is better
+\item[]
+\end{itemize}
+
+\pause
+
+BIC:
+\begin{itemize}
+\item[]
+  $BIC(\bm{\gamma})=n\mathrm{log}\left(\hat{\sigma}^2_{\bm{\gamma}}\right)
+  + \mathrm{log}(n)(p_{\bm{\gamma}}+1)$
+\item Determined up to an additive constant common to all models.
+\item Assesses relative model fit - smaller is better
+\item Favors smaller models relative to AIC
+\end{itemize}
+\end{frame}
+
+\begin{frame}
+  \frametitle{Model Selection}
+Marginal Likelihood:
+\begin{align*}
+ML(\bm{\gamma})&\equiv  p(\bm{y}|\bm{X}_{\bm{\gamma}},\bm{\gamma}, g) =
+\int   p(\bm{y}|\bm{X}_{\bm{\gamma}},\bm{\lambda}_{\bm{\gamma}},
+\sigma^2_{\bm{\gamma}},\bm{\gamma})
+p(\bm{\lambda}_{\bm{\gamma}},\sigma^2_{\bm{\gamma}}|
+\bm{\gamma}, g)d(\bm{\lambda}_{\bm{\gamma}},\sigma^2_{\bm{\gamma}})
+\end{align*}\pause
+\begin{align*}
+  &=   \frac{\Gamma\left(\frac{n-1}{2}\right)}
+    {\sqrt{\pi}^{(n-1)}\sqrt{n}}||\bm{y}-\bar{\bm{y}}||^{-(n-1)}
+    \frac{(1+g)^{(n-1-k_{\bm{\gamma}})/2}}{[1+g(1-R^2_{\bm{\gamma}})]^{(n-1)/2}}\\
+    &\propto \frac{(1+g)^{(n-1-k_{\bm{\gamma}})/2}}{[1+g(1-R^2_{\bm{\gamma}})]^{(n-1)/2}}
+\end{align*}
+
+\begin{itemize}
+  \item[] Where $R^2_{\bm{\gamma}}$ is the ordinary coefficient of
+    determination, i.e. $R^2_{\bm{\gamma}}=1-\frac{SSE}{SST}$ and
+    $SST=(\bm{y}-\bar{y})'(\bm{y}-\bar{y})$.
+  \item[]\pause
+  \item AKA ``model evidence.''
+  \item Setting $g=n$ makes ML behave like BIC.
+  \item Liang et al. (2007) argue for putting a hyperprior on $g$, but
+    we'll use $g=n$ for convience.
+ \end{itemize}
+
+\end{frame}
+
+\begin{frame}
+  \frametitle{Model Selection}
+Bayes Factors:
+\begin{itemize}
+  \item[] $BF(\bm{\gamma}_1,\bm{\gamma}_2) =
+    \frac{ML(\bm{\gamma}_1)}{ML(\bm{\gamma}_2)} $
+  \item[]
+  \item Quantifies the evidence in favor of model 1 over model 2:
+    $BF>1$ indicates the evidence favors model 1, $BF<1$ indicates
+    that it favors model 2.
+  \item[]
+\end{itemize}\pause
+Posterior Model Probability:
+\begin{itemize}
+  \item[] Given $M$ possible models and a prior $p(\bm{\gamma})$ over
+    the model space, the posterior probability of each model is:
+    \item[]
+    \item[]
+    \begin{itemize}
+    \item[] $p(\bm{\gamma}|\bm{y},\bm{X}_{\bm{\gamma}}) =
+    \frac{ML(\bm{\gamma})p(\bm{\gamma})}{
+      \sum_{\bm{\gamma}}ML(\bm{\gamma})p(\bm{\gamma})}$
+    \end{itemize}
+  \item[]
+  \item Takes into account both evidence and prior.
+  \item Knowledge of all Bayes factors and the prior
+    $p(\bm{\gamma})$ is sufficient to calculate posterior model probabilities.
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Computation}
+
+With $k$ possible covariates, $M=2^k$ possible models.\newline
+
+As $k$ grows, $M$ quickly becomes too large to enumerate and fit all
+possible models.\pause\newline
+
+Enter GPU Computation: Massively parallel computations allows:
+\begin{enumerate}
+\item Ability to fit models simultaneously instead of sequentially.
+\item Speed-up of linear algebra operations.\newline
+\end{enumerate}\pause
+
+\verb0gputools0 \verb0R0 package: Uses the CUBLAS library to perform
+linear algebra routines necessary to fit a regression model, all on
+the GPU.\newline
+
+(Installed on impact1)
+\end{frame}
+
+\begin{frame}[fragile]
+  \frametitle{Implementation}
+  \begin{itemize}
+    \item[] R Wrapper: Calls the \verb0gputools0 function
+      \verb0gpuLm.fit0 in order to fit each regression model.\pause\newline
+
+    \item[] C Wrapper: Calls the \verb0gputools0 \verb0C0 function
+      \verb0gpuLSFitF0 to fit each regression model; housekeeping done
+      in \verb0C0 instead of \verb0R0.\pause\newline
+
+    \item[] Smart C Wrapper (``C Smart''): Preallocates all memory
+      needed for computations on the GPU then calls modified versions
+      of \verb0gputools0 \verb0CUDA C0 functions to fit each model.\pause\newline
+
+    \item[] LM Wrapper: Identical to the R Wrapper except it uses the
+      base \verb0R0 function \verb0lm.fit0 to fit all models - used as
+      a baseline.\newline
+  \end{itemize}
+
+  \pause All functions timed using the \verb0R0 function \verb0system.time0,
+  output \verb0elapstime0.
+\end{frame}
+
+\begin{frame}[fragile]
+  \frametitle{CUBLAS Bug}
+  Version 4.1 of the CUDA toolkit contains a bug in the CUBLAS library
+  function \verb0cublasDestroy0.\newline
+
+  Upshot: for $k>13$ the R and C wrappers throw an error before all
+  models are fit, so limited to $k<=13$ for testing purposes.\pause\newline
+
+  Fixed in version 4.2, but 4.2 is not currently available for
+  impact1's OS.\newline
+
+  Unlikely to affect any programs you may want to write - for details,
+  see:
+  \begin{itemize}
+    \item[] https://github.com/jarad/gpuModelSearch/tree/master/CublasBug
+    \item[] http://www.culatools.com/blog/2012/03/12/3099/
+    \end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\begin{figure}[ht]
+  \centering
+<<k10, fig.width=6, fig.height=3.5, out.width='1\\textwidth', echo=F>>=
+qplot(data=mns[mns$k==10 & mns$n <= 2000000,],x=n, y=elapstime, color=wrap, geom="line", log="x")
+@
+\caption{Mean time to fit over 5 samples (in seconds) vs. $n$ (log
+  scale) by wrapper type.''R'' denotes the R wrapper, ``C'' denotes
+  the C wrapper, ``CS'' denotes the smart C wrapper and ``LM'' denotes
+  the non-GPU LM wrapper.}
+\label{k10}
+\end{figure}
+
+\end{frame}
+
+
+\begin{frame}[fragile]
+\begin{figure}[ht]
+  \centering
+<<k10rat, fig.width=6, fig.height=3.5, out.width='1\\textwidth', echo=F>>=
+qplot(data=ratmns[ratmns$k==10,],x=n, y=elapsratio, color=ratio, geom="line", log="x")
+@
+\caption{Ratio of LM fit time to various wrapper fit times vs. n (log scale) for
+  $k=10$. Ratios are calculated as, e.g. for "LM / R",  mean(fit time
+  for LM wrapper / fit  time for R wrapper).}
+\label{k10rat}
+\end{figure}
+\end{frame}
+
+\begin{frame}[fragile]
+\begin{figure}[ht]
+  \centering
+<<k5rat, fig.width=6, fig.height=3.5, out.width='1\\textwidth', echo=F>>=
+qplot(data=ratmns[ratmns$k==5,],x=n, y=elapsratio, color=ratio, geom="line", log="x") #$
+@
+\caption{Ratio of wrapper fit times vs. $n$ (log scale) for $k=5$.}
+\label{k5rat}
+\end{figure}
+\end{frame}
+
+\begin{frame}[fragile]
+\begin{figure}[ht]
+  \centering
+<<n100, fig.width=6, fig.height=3.5, out.width='1\\textwidth', echo=F>>=
+qplot(data=mns[mns$n==100 & mns$k<=13,],x=k, y=elapstime, color=wrap, geom="line")
+@
+\caption{Time to fit (in seconds) vs. $k$ by wrapper type
+  $n=100$. Recall that due to a bug in the CUBLAS library, $k$ must be
+  kept small for all wrappers except the smart wrapper.}
+\label{n100}
+\end{figure}
+\end{frame}
+
+\begin{frame}[fragile]
+\begin{figure}[ht]
+  \centering
+<<n100rat, fig.width=6, fig.height=3.5, out.width='1\\textwidth', echo=F>>=
+qplot(data=ratmns[ratmns$n==100,],x=k, y=elapsratio, color=ratio, geom="line")
+@
+\caption{Ratio wrapper fit times vs. $k$ for $n=100$.}
+\label{n100rat}
+\end{figure}
+\end{frame}
+
+\begin{frame}
+  \frametitle{Limits of the Smart Wrapper}
+
+<<csTable, results=tex, echo=F>>=
+xtable(est.day.mat[seq(1,21,2),2:6], caption="Predicted time in days to fit all possible regression models using the C smart wrapper, based on a regression of log(elapstime) on n and k.", label="CSreg", size="small")
+@
+\end{frame}
+
+\begin{frame}
+  \frametitle{Further Work}
+  Smart wrapper was about 4 times faster than using the CPU for large
+  $n$, but seemed pretty poor for large $k$.\newline
+
+  Obvious way to gain more speed: fit models simultaneously on the GPU.\pause\newline
+
+  Several possibilities:
+  \begin{enumerate}
+  \item Model per thread\newline
+  \item Model per block\newline
+  \item Hybrid\newline
+  \item Something clever
+  \end{enumerate}
+
+\end{frame}
+
+\begin{frame}
+  \frametitle{Blocks and Threads}
+  Threads are organized into blocks. Threads within a block can
+  synchronize with each other and share access to fast-access shared
+  memory. Threads from different blocks only share access to
+  slower-access global memory.\pause\newline
+
+
+  Model per Thread
+  \begin{itemize}
+  \item Assign each regression model a thread.
+  \item Fails to take advantage of parallelization for linear algebra
+    operations.
+  \item Requires functions to be written to perform these operations.\newline
+  \end{itemize}
+
+  \pause
+  Model per block
+  \begin{itemize}
+  \item Assign each regression model a block of threads for fitting the model.
+  \item Takes advantage of parallelization for linear algebra operations.
+  \item Requires GPU kernels to be written to perform these operatons.\newline
+  \end{itemize}
+
+  \pause
+  Hybrid
+  \begin{itemize}
+  \item Determine whether to assign a given model a thread or a block based
+  on some easily identified criteria, e.g. $n/k$.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}
+  \frametitle{Something Clever}
+
+  All of these regressions are related - may be possible to skip doing
+  the full blown computation.\pause\newline
+
+  One idea: iterative SLR (Dr. Nettleton)\newline
+
+  Suppose we want to fit
+  \[
+  \bm{y}=\bm{X}\bm{\beta}+\bm{\epsilon} =
+  \bm{X}_1\bm{\beta}_1 + \bm{x}_2\beta_2+\bm{\epsilon}
+  \]
+  and we have already fit
+  \[
+  \bm{y}=\bm{X}_1\bm{\beta}_1+\bm{\delta}_{red}
+  \]
+\end{frame}
+
+\begin{frame}
+  \frametitle{Something Clever}
+  Note that $\bm{x}_2$ is a single column vector, now fit the
+  added variable regression
+  \[
+  \bm{x}_2 = \bm{X}_1\bm{\lambda}_1 + \bm{\delta}_{add}
+  \]\pause
+
+  Then fit the residual regression
+  \[
+  \hat{\bm{\delta}}_{red} = \hat{\bm{\delta}}_{add}\bm{\gamma} + \bm{\eta}
+  \]
+  Then $\hat{\bm{\epsilon}} = \hat{\bm{\eta}}$ -- note only residuals
+  are need for model selection.\pause\newline
+
+  Just need a cheap way to compute $\hat{\bm{\delta}}_{add}$, then
+  we can iteratively fit all models without matrix algebra.
+\end{frame}
+
+\begin{frame}[fragile]
+  \frametitle{Details, Details, Details}
+  All sorts of details at \newline
+  \begin{itemize}
+  \item[] https://github.com/jarad/gpuModelSearch
+  \end{itemize}
+\end{frame}
+
+\end{document}
