@@ -816,6 +816,28 @@ estimates of all regression models after fitting the full regression
 model including all possible covariates: the Gauss-Doolittle
 algorithm, also known as the sweep operator\cite{goodnight1979tutorial}.
 
+It's also worth noting the relative speed of \verb0gpuLm0 and
+\verb0lm0 for fitting a single regression model. In general, the
+number of observations, $n$, and the number of covariates, $k$, has to
+be large in order for \verb0gpuLm0 to be faster than \verb0lm0. At
+$n=10,000,000$ and $k=100$, \verb0gpuLm0 is nearly twice as fast at
+fitting the full model as \verb0lm0, however decreasing $k$ quickly
+changes this result. It appears that the model matrix has to be both
+``tall'' and ``wide'' in order for the GPU to speed up the
+computation. This helps explain why the \verb0R0 and \verb0C0 wrappers
+were slower than \verb0lm0 in the all-possible-regressions problem -
+the size of the full model was much smaller than necessary for the GPU
+computations to be faster. Essentially, there seems to be a large
+fixed cost associated with moving the computation to the GPU, but in
+return you get a small decrease in the marginal cost of increasing the
+``size'' of the computation. Only for very large computations end up
+seeing a net benefit. The \verb0R0 and \verb0C0 wrappers can be seen
+as paying the large fixed cost \textit{for each regression
+  model}. Since most of the models are small, the computation required
+is small and the result is a slowdown. The smart wrapper, on the other
+hand, pays the fixed cost once - or rather pays a slightly larger
+fixed cost, but only once instead of for each possible model.
+
 \bibliography{gpubib}
 \bibliographystyle{plainnat}
 
